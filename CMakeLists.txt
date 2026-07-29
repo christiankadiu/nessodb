@@ -9,6 +9,7 @@ project(
 include(CTest)
 
 add_library(minidb
+    src/binder/binder.cpp
     src/sql/lexer.cpp
     src/sql/parser.cpp
 )
