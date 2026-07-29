@@ -111,6 +111,12 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::create;
     } else if (equals_case_insensitive(token.lexeme, "table")) {
         token.type = TokenType::table;
+    } else if (equals_case_insensitive(token.lexeme, "insert")) {
+        token.type = TokenType::insert;
+    } else if (equals_case_insensitive(token.lexeme, "into")) {
+        token.type = TokenType::into;
+    } else if (equals_case_insensitive(token.lexeme, "values")) {
+        token.type = TokenType::values;
     } else if (equals_case_insensitive(token.lexeme, "int")) {
         token.type = TokenType::integer_type;
     } else if (equals_case_insensitive(token.lexeme, "text")) {
