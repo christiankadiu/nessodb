@@ -15,6 +15,7 @@ add_library(minidb
     src/engine/query.cpp
     src/sql/lexer.cpp
     src/sql/parser.cpp
+    src/storage/access/in_memory_heap.cpp
 )
 add_library(MiniDB::minidb ALIAS minidb)
 
