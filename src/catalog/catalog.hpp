@@ -2,6 +2,7 @@
 
 #include "catalog/schema.hpp"
 
+#include <cstdint>
 #include <deque>
 #include <expected>
 #include <string_view>
@@ -19,6 +20,7 @@ public:
 
 private:
     std::deque<TableSchema> tables_;
+    std::uint64_t next_table_id_{1};
 };
 
 }  // namespace minidb::catalog

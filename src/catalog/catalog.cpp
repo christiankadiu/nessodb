@@ -11,6 +11,8 @@ std::expected<void, CatalogError> Catalog::create_table(TableSchema schema) {
         return std::unexpected(CatalogError::table_already_exists);
     }
 
+    schema.id = common::TableId{next_table_id_};
+    ++next_table_id_;
     tables_.push_back(std::move(schema));
     return {};
 }
