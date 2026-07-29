@@ -7,7 +7,13 @@
 
 namespace minidb::sql {
 
+enum class LexErrorCode {
+    invalid_character,
+    unterminated_string,
+};
+
 struct LexError {
+    LexErrorCode code;
     char character{};
     SourceLocation location;
 };
@@ -26,6 +32,7 @@ private:
 
     [[nodiscard]] Token scan_identifier(SourceLocation start) noexcept;
     [[nodiscard]] Token scan_integer(SourceLocation start) noexcept;
+    [[nodiscard]] std::expected<Token, LexError> scan_string(SourceLocation start) noexcept;
     [[nodiscard]] Token make_token(TokenType type, SourceLocation start) const noexcept;
 
     std::string_view source_;

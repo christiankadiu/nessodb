@@ -7,6 +7,7 @@
 namespace {
 
 using minidb::sql::Lexer;
+using minidb::sql::LexErrorCode;
 using minidb::sql::SourceLocation;
 using minidb::sql::Token;
 using minidb::sql::TokenType;
@@ -76,15 +77,46 @@ void test_select_delimiters() {
     expect(next_token(lexer).type == TokenType::end_of_input, "input ends after semicolon");
 }
 
+void test_string_literals() {
+    Lexer lexer{"'Alice' '' 'it''s done'"};
+
+    const Token text = next_token(lexer);
+    expect(text.type == TokenType::string_literal, "text literal is recognized");
+    expect(text.lexeme == "'Alice'", "text literal lexeme is preserved");
+
+    const Token empty = next_token(lexer);
+    expect(empty.type == TokenType::string_literal, "empty text literal is recognized");
+    expect(empty.lexeme == "''", "empty text literal lexeme is preserved");
+
+    const Token escaped = next_token(lexer);
+    expect(escaped.type == TokenType::string_literal, "escaped quote is recognized");
+    expect(escaped.lexeme == "'it''s done'", "escaped quote remains in the lexeme");
+}
+
 void test_invalid_character() {
     Lexer lexer{"@"};
     const auto result = lexer.next();
 
     expect(!result, "invalid character produces an error");
     if (!result) {
+        expect(result.error().code == LexErrorCode::invalid_character,
+               "invalid character has expected error code");
         expect(result.error().character == '@', "error contains invalid character");
         expect(result.error().location == SourceLocation{0, 1, 1},
                "error location is correct");
+    }
+}
+
+void test_unterminated_string() {
+    Lexer lexer{"'unfinished"};
+    const auto result = lexer.next();
+
+    expect(!result, "unterminated string produces an error");
+    if (!result) {
+        expect(result.error().code == LexErrorCode::unterminated_string,
+               "unterminated string has expected error code");
+        expect(result.error().location == SourceLocation{0, 1, 1},
+               "unterminated string points to opening quote");
     }
 }
 
@@ -95,7 +127,9 @@ int main() {
     test_select_query_prefix();
     test_locations();
     test_select_delimiters();
+    test_string_literals();
     test_invalid_character();
+    test_unterminated_string();
 
     if (failures != 0) {
         std::cerr << failures << " lexer assertion(s) failed\n";

@@ -46,6 +46,9 @@ std::expected<Token, LexError> Lexer::next() {
     if (std::isdigit(static_cast<unsigned char>(peek())) != 0) {
         return scan_integer(start);
     }
+    if (peek() == '\'') {
+        return scan_string(start);
+    }
 
     const char character = advance();
     if (character == ',') {
@@ -55,7 +58,7 @@ std::expected<Token, LexError> Lexer::next() {
         return make_token(TokenType::semicolon, start);
     }
 
-    return std::unexpected(LexError{character, start});
+    return std::unexpected(LexError{LexErrorCode::invalid_character, character, start});
 }
 
 bool Lexer::at_end() const noexcept {
@@ -106,6 +109,27 @@ Token Lexer::scan_integer(SourceLocation start) noexcept {
         advance();
     }
     return make_token(TokenType::integer_literal, start);
+}
+
+std::expected<Token, LexError> Lexer::scan_string(SourceLocation start) noexcept {
+    advance();
+
+    while (!at_end()) {
+        if (peek() != '\'') {
+            advance();
+            continue;
+        }
+
+        advance();
+        if (!at_end() && peek() == '\'') {
+            advance();
+            continue;
+        }
+
+        return make_token(TokenType::string_literal, start);
+    }
+
+    return std::unexpected(LexError{LexErrorCode::unterminated_string, '\'', start});
 }
 
 Token Lexer::make_token(TokenType type, SourceLocation start) const noexcept {
