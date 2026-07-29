@@ -10,6 +10,8 @@ enum class TokenType {
     identifier,
     integer_literal,
     select,
+    comma,
+    semicolon,
 };
 
 struct SourceLocation {

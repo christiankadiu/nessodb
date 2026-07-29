@@ -65,6 +65,17 @@ void test_locations() {
     expect(identifier.location == SourceLocation{10, 2, 3}, "CRLF location is correct");
 }
 
+void test_select_delimiters() {
+    Lexer lexer{"SELECT 1, 2;"};
+
+    expect(next_token(lexer).type == TokenType::select, "SELECT is recognized");
+    expect(next_token(lexer).type == TokenType::integer_literal, "first integer is recognized");
+    expect(next_token(lexer).type == TokenType::comma, "comma is recognized");
+    expect(next_token(lexer).type == TokenType::integer_literal, "second integer is recognized");
+    expect(next_token(lexer).type == TokenType::semicolon, "semicolon is recognized");
+    expect(next_token(lexer).type == TokenType::end_of_input, "input ends after semicolon");
+}
+
 void test_invalid_character() {
     Lexer lexer{"@"};
     const auto result = lexer.next();
@@ -83,6 +94,7 @@ int main() {
     test_empty_input();
     test_select_query_prefix();
     test_locations();
+    test_select_delimiters();
     test_invalid_character();
 
     if (failures != 0) {

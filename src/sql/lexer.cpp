@@ -48,6 +48,13 @@ std::expected<Token, LexError> Lexer::next() {
     }
 
     const char character = advance();
+    if (character == ',') {
+        return make_token(TokenType::comma, start);
+    }
+    if (character == ';') {
+        return make_token(TokenType::semicolon, start);
+    }
+
     return std::unexpected(LexError{character, start});
 }
 
