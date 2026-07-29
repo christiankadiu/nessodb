@@ -63,6 +63,102 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 }
 
+std::expected<CreateTableStatement, ParseError> Parser::parse_create_table_statement() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::create) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_create, token->location});
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::table) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_table, token->location});
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::identifier) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_identifier, token->location});
+    }
+
+    CreateTableStatement statement{token->lexeme, token->location, {}};
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::left_parenthesis) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_left_parenthesis, token->location});
+    }
+
+    token = next_token();
+    while (true) {
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::identifier) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_identifier, token->location});
+        }
+
+        const Token column_name = *token;
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+
+        ColumnType column_type;
+        if (token->type == TokenType::integer_type) {
+            column_type = ColumnType::integer;
+        } else if (token->type == TokenType::text_type) {
+            column_type = ColumnType::text;
+        } else {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_column_type, token->location});
+        }
+        statement.columns.push_back(
+            ColumnDefinition{column_name.lexeme, column_type, column_name.location});
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type == TokenType::right_parenthesis) {
+            break;
+        }
+        if (token->type != TokenType::comma) {
+            return std::unexpected(ParseError{
+                ParseErrorCode::expected_comma_or_right_parenthesis, token->location});
+        }
+        token = next_token();
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type == TokenType::semicolon) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    if (token->type != TokenType::end_of_input) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_end_of_input, token->location});
+    }
+
+    return statement;
+}
+
 std::expected<Token, ParseError> Parser::next_token() {
     auto token = lexer_.next();
     if (!token) {
