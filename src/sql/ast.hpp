@@ -41,6 +41,12 @@ struct CreateTableStatement {
     std::vector<ColumnDefinition> columns;
 };
 
+struct InsertStatement {
+    std::string_view table_name;
+    SourceLocation table_location;
+    std::vector<LiteralExpression> values;
+};
+
 using Statement = std::variant<SelectStatement, CreateTableStatement>;
 
 }  // namespace minidb::sql

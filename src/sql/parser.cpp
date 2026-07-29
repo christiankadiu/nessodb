@@ -3,6 +3,24 @@
 #include <utility>
 
 namespace minidb::sql {
+namespace {
+
+bool is_literal(TokenType type) noexcept {
+    return type == TokenType::integer_literal || type == TokenType::string_literal ||
+           type == TokenType::null_literal;
+}
+
+LiteralType literal_type(TokenType type) noexcept {
+    if (type == TokenType::integer_literal) {
+        return LiteralType::integer;
+    }
+    if (type == TokenType::string_literal) {
+        return LiteralType::string;
+    }
+    return LiteralType::null;
+}
+
+}  // namespace
 
 Parser::Parser(std::string_view source) noexcept : lexer_(source) {}
 
@@ -47,19 +65,12 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         if (!token) {
             return std::unexpected(token.error());
         }
-        if (token->type != TokenType::integer_literal && token->type != TokenType::string_literal &&
-            token->type != TokenType::null_literal) {
+        if (!is_literal(token->type)) {
             return std::unexpected(ParseError{ParseErrorCode::expected_literal, token->location});
         }
 
-        LiteralType literal_type = LiteralType::null;
-        if (token->type == TokenType::integer_literal) {
-            literal_type = LiteralType::integer;
-        } else if (token->type == TokenType::string_literal) {
-            literal_type = LiteralType::string;
-        }
         statement.expressions.push_back(
-            LiteralExpression{literal_type, token->lexeme, token->location});
+            LiteralExpression{literal_type(token->type), token->lexeme, token->location});
 
         auto delimiter = next_token();
         if (!delimiter) {
@@ -183,6 +194,91 @@ std::expected<CreateTableStatement, ParseError> Parser::parse_create_table_state
             ParseError{ParseErrorCode::expected_end_of_input, token->location});
     }
 
+    return statement;
+}
+
+std::expected<InsertStatement, ParseError> Parser::parse_insert_statement() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::insert) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_insert, token->location});
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::into) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_into, token->location});
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::identifier) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_identifier, token->location});
+    }
+    InsertStatement statement{token->lexeme, token->location, {}};
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::values) {
+        return std::unexpected(ParseError{ParseErrorCode::expected_values, token->location});
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::left_parenthesis) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_left_parenthesis, token->location});
+    }
+
+    token = next_token();
+    while (true) {
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (!is_literal(token->type)) {
+            return std::unexpected(ParseError{ParseErrorCode::expected_literal, token->location});
+        }
+        statement.values.push_back(
+            LiteralExpression{literal_type(token->type), token->lexeme, token->location});
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type == TokenType::right_parenthesis) {
+            break;
+        }
+        if (token->type != TokenType::comma) {
+            return std::unexpected(ParseError{
+                ParseErrorCode::expected_comma_or_right_parenthesis, token->location});
+        }
+        token = next_token();
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type == TokenType::semicolon) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    if (token->type != TokenType::end_of_input) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_end_of_input, token->location});
+    }
     return statement;
 }
 
