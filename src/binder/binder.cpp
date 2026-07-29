@@ -62,6 +62,11 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     bound_statement.expressions.reserve(statement.expressions.size());
 
     for (const auto& expression : statement.expressions) {
+        if (expression.type == sql::LiteralType::null) {
+            return std::unexpected(
+                BindError{BindErrorCode::unsupported_null_literal, expression.location});
+        }
+
         auto value = expression.type == sql::LiteralType::integer ? bind_integer(expression)
                                                                   : bind_string(expression);
         if (!value) {

@@ -10,6 +10,7 @@ namespace minidb::sql {
 enum class LiteralType {
     integer,
     string,
+    null,
 };
 
 struct LiteralExpression {

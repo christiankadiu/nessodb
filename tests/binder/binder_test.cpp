@@ -93,12 +93,31 @@ void test_string_literals() {
     }
 }
 
+void test_unsupported_null_literal() {
+    Parser parser{"SELECT NULL;"};
+    const auto parsed = parser.parse_select_statement();
+    expect(parsed.has_value(), "NULL literal is syntactically valid");
+    if (!parsed) {
+        return;
+    }
+
+    const auto bound = bind_select_statement(*parsed);
+    expect(!bound, "NULL literal is not bound yet");
+    if (!bound) {
+        expect(bound.error().code == BindErrorCode::unsupported_null_literal,
+               "unsupported NULL has expected error code");
+        expect(bound.error().location == SourceLocation{7, 1, 8},
+               "unsupported NULL has expected location");
+    }
+}
+
 }  // namespace
 
 int main() {
     test_integer_literals();
     test_integer_overflow();
     test_string_literals();
+    test_unsupported_null_literal();
 
     if (failures != 0) {
         std::cerr << failures << " binder assertion(s) failed\n";
