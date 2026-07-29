@@ -1,5 +1,7 @@
 #include "binder/binder.hpp"
 
+#include "common/identifier.hpp"
+
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
@@ -74,6 +76,30 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         }
         bound_statement.expressions.push_back(
             BoundLiteralExpression{std::move(value), expression.location});
+    }
+
+    return bound_statement;
+}
+
+std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
+    const sql::CreateTableStatement& statement) {
+    BoundCreateTableStatement bound_statement{
+        std::string{statement.table_name}, statement.table_location, {}};
+    bound_statement.columns.reserve(statement.columns.size());
+
+    for (const auto& column : statement.columns) {
+        for (const auto& existing_column : bound_statement.columns) {
+            if (common::identifiers_equal(column.name, existing_column.name)) {
+                return std::unexpected(
+                    BindError{BindErrorCode::duplicate_column, column.location});
+            }
+        }
+
+        const types::LogicalType type = column.type == sql::ColumnType::integer
+                                            ? types::LogicalType::integer
+                                            : types::LogicalType::text;
+        bound_statement.columns.push_back(
+            BoundColumnDefinition{std::string{column.name}, type, column.location});
     }
 
     return bound_statement;

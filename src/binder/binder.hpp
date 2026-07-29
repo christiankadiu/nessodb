@@ -11,6 +11,7 @@ enum class BindErrorCode {
     invalid_integer_literal,
     invalid_string_literal,
     integer_out_of_range,
+    duplicate_column,
 };
 
 struct BindError {
@@ -20,5 +21,7 @@ struct BindError {
 
 [[nodiscard]] std::expected<BoundSelectStatement, BindError> bind_select_statement(
     const sql::SelectStatement& statement);
+[[nodiscard]] std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
+    const sql::CreateTableStatement& statement);
 
 }  // namespace minidb::binder
