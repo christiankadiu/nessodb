@@ -1,6 +1,7 @@
 #include "binder/binder.hpp"
 
 #include <charconv>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -54,6 +55,21 @@ std::expected<types::Value, BindError> bind_string(const sql::LiteralExpression&
     return types::Value{std::move(value)};
 }
 
+bool identifiers_equal(std::string_view left, std::string_view right) noexcept {
+    if (left.size() != right.size()) {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < left.size(); ++index) {
+        const auto left_character = static_cast<unsigned char>(left[index]);
+        const auto right_character = static_cast<unsigned char>(right[index]);
+        if (std::tolower(left_character) != std::tolower(right_character)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -74,6 +90,30 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         }
         bound_statement.expressions.push_back(
             BoundLiteralExpression{std::move(value), expression.location});
+    }
+
+    return bound_statement;
+}
+
+std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
+    const sql::CreateTableStatement& statement) {
+    BoundCreateTableStatement bound_statement{
+        std::string{statement.table_name}, statement.table_location, {}};
+    bound_statement.columns.reserve(statement.columns.size());
+
+    for (const auto& column : statement.columns) {
+        for (const auto& existing_column : bound_statement.columns) {
+            if (identifiers_equal(column.name, existing_column.name)) {
+                return std::unexpected(
+                    BindError{BindErrorCode::duplicate_column, column.location});
+            }
+        }
+
+        const types::LogicalType type = column.type == sql::ColumnType::integer
+                                            ? types::LogicalType::integer
+                                            : types::LogicalType::text;
+        bound_statement.columns.push_back(
+            BoundColumnDefinition{std::string{column.name}, type, column.location});
     }
 
     return bound_statement;
