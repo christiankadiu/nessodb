@@ -10,6 +10,7 @@ include(CTest)
 
 add_library(minidb
     src/sql/lexer.cpp
+    src/sql/parser.cpp
 )
 add_library(MiniDB::minidb ALIAS minidb)
 
