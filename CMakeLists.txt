@@ -11,6 +11,7 @@ include(CTest)
 add_library(minidb
     src/binder/binder.cpp
     src/catalog/catalog.cpp
+    src/engine/database.cpp
     src/engine/query.cpp
     src/sql/lexer.cpp
     src/sql/parser.cpp

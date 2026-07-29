@@ -15,7 +15,16 @@ struct QueryResult {
     std::vector<types::Value> values;
 };
 
-using QueryError = std::variant<sql::ParseError, binder::BindError>;
+enum class ExecutionErrorCode {
+    table_already_exists,
+};
+
+struct ExecutionError {
+    ExecutionErrorCode code;
+    sql::SourceLocation location;
+};
+
+using QueryError = std::variant<sql::ParseError, binder::BindError, ExecutionError>;
 
 [[nodiscard]] std::expected<QueryResult, QueryError> execute_query(std::string_view source);
 

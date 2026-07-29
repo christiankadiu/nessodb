@@ -1,8 +1,35 @@
 #include "sql/parser.hpp"
 
+#include <utility>
+
 namespace minidb::sql {
 
 Parser::Parser(std::string_view source) noexcept : lexer_(source) {}
+
+std::expected<Statement, ParseError> Parser::parse_statement() {
+    Lexer statement_lexer = lexer_;
+    auto token = statement_lexer.next();
+    if (!token) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::lexical_error, token.error().location});
+    }
+
+    if (token->type == TokenType::select) {
+        auto statement = parse_select_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{std::move(*statement)};
+    }
+    if (token->type == TokenType::create) {
+        auto statement = parse_create_table_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{std::move(*statement)};
+    }
+    return std::unexpected(ParseError{ParseErrorCode::expected_statement, token->location});
+}
 
 std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     auto token = next_token();

@@ -10,6 +10,7 @@ namespace minidb::sql {
 
 enum class ParseErrorCode {
     lexical_error,
+    expected_statement,
     expected_select,
     expected_literal,
     expected_comma_or_end,
@@ -31,6 +32,7 @@ class Parser {
 public:
     explicit Parser(std::string_view source) noexcept;
 
+    [[nodiscard]] std::expected<Statement, ParseError> parse_statement();
     [[nodiscard]] std::expected<SelectStatement, ParseError> parse_select_statement();
     [[nodiscard]] std::expected<CreateTableStatement, ParseError> parse_create_table_statement();
 

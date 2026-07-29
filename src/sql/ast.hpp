@@ -3,6 +3,7 @@
 #include "sql/token.hpp"
 
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace minidb::sql {
@@ -39,5 +40,7 @@ struct CreateTableStatement {
     SourceLocation table_location;
     std::vector<ColumnDefinition> columns;
 };
+
+using Statement = std::variant<SelectStatement, CreateTableStatement>;
 
 }  // namespace minidb::sql
