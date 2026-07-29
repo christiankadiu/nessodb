@@ -1,0 +1,33 @@
+cmake_minimum_required(VERSION 3.21)
+
+project(
+    MiniDB
+    DESCRIPTION "A relational database engine written in modern C++"
+    LANGUAGES CXX
+)
+
+include(CTest)
+
+add_library(minidb
+    src/sql/lexer.cpp
+)
+add_library(MiniDB::minidb ALIAS minidb)
+
+target_compile_features(minidb PUBLIC cxx_std_23)
+target_include_directories(minidb
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+set_target_properties(minidb PROPERTIES
+    CXX_EXTENSIONS OFF
+)
+
+if(MSVC)
+    target_compile_options(minidb PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(minidb PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion)
+endif()
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

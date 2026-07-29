@@ -1,0 +1,20 @@
+add_executable(minidb_lexer_test
+    sql/lexer_test.cpp
+)
+target_link_libraries(minidb_lexer_test PRIVATE MiniDB::minidb)
+target_include_directories(minidb_lexer_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+)
+set_target_properties(minidb_lexer_test PROPERTIES
+    CXX_EXTENSIONS OFF
+)
+
+if(MSVC)
+    target_compile_options(minidb_lexer_test PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(minidb_lexer_test PRIVATE
+        -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
+    )
+endif()
+
+add_test(NAME lexer COMMAND minidb_lexer_test)

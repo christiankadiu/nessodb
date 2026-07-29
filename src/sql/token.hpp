@@ -1,0 +1,29 @@
+#pragma once
+
+#include <cstddef>
+#include <string_view>
+
+namespace minidb::sql {
+
+enum class TokenType {
+    end_of_input,
+    identifier,
+    integer_literal,
+    select,
+};
+
+struct SourceLocation {
+    std::size_t offset{};
+    std::size_t line{1};
+    std::size_t column{1};
+
+    friend bool operator==(const SourceLocation&, const SourceLocation&) = default;
+};
+
+struct Token {
+    TokenType type{TokenType::end_of_input};
+    std::string_view lexeme;
+    SourceLocation location;
+};
+
+}  // namespace minidb::sql

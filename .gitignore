@@ -1,0 +1,66 @@
+# Build output
+/build/
+/build-*/
+/out/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+install_manifest.txt
+
+# Compiled artifacts
+*.a
+*.dll
+*.dylib
+*.exe
+*.lib
+*.o
+*.obj
+*.pdb
+*.so
+*.so.*
+
+# Runtime data
+*.db
+*.db-journal
+*.wal
+*.log
+*.core
+core
+core.*
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+credentials.json
+secrets.json
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Tool caches and reports
+.cache/
+.clangd/
+.coverage/
+coverage/
+htmlcov/
