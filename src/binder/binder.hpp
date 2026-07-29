@@ -10,6 +10,7 @@ namespace minidb::binder {
 enum class BindErrorCode {
     invalid_integer_literal,
     integer_out_of_range,
+    unsupported_literal,
 };
 
 struct BindError {

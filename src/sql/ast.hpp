@@ -7,13 +7,19 @@
 
 namespace minidb::sql {
 
-struct IntegerLiteralExpression {
+enum class LiteralType {
+    integer,
+    string,
+};
+
+struct LiteralExpression {
+    LiteralType type;
     std::string_view text;
     SourceLocation location;
 };
 
 struct SelectStatement {
-    std::vector<IntegerLiteralExpression> expressions;
+    std::vector<LiteralExpression> expressions;
 };
 
 }  // namespace minidb::sql

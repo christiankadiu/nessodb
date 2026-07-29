@@ -12,6 +12,11 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     bound_statement.expressions.reserve(statement.expressions.size());
 
     for (const auto& expression : statement.expressions) {
+        if (expression.type != sql::LiteralType::integer) {
+            return std::unexpected(
+                BindError{BindErrorCode::unsupported_literal, expression.location});
+        }
+
         std::int64_t value{};
         const char* const begin = expression.text.data();
         const char* const end = begin + expression.text.size();

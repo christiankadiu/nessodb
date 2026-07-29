@@ -8,6 +8,7 @@ namespace {
 
 using minidb::sql::ParseErrorCode;
 using minidb::sql::Parser;
+using minidb::sql::LiteralType;
 using minidb::sql::SourceLocation;
 
 int failures = 0;
@@ -20,7 +21,7 @@ void expect(bool condition, std::string_view description) {
 }
 
 void test_select_list() {
-    Parser parser{"SELECT 1, 22;"};
+    Parser parser{"SELECT 1, 'Alice';"};
     const auto result = parser.parse_select_statement();
 
     expect(result.has_value(), "valid SELECT is parsed");
@@ -30,10 +31,14 @@ void test_select_list() {
 
     expect(result->expressions.size() == 2, "SELECT contains two expressions");
     if (result->expressions.size() == 2) {
-        expect(result->expressions[0].text == "1", "first integer text is preserved");
+        expect(result->expressions[0].type == LiteralType::integer,
+               "first expression is an integer");
+        expect(result->expressions[0].text == "1", "integer text is preserved");
         expect(result->expressions[0].location == SourceLocation{7, 1, 8},
                "first integer location is preserved");
-        expect(result->expressions[1].text == "22", "second integer text is preserved");
+        expect(result->expressions[1].type == LiteralType::string,
+               "second expression is a string");
+        expect(result->expressions[1].text == "'Alice'", "string text is preserved");
     }
 }
 
@@ -62,10 +67,10 @@ void expect_error(std::string_view source, ParseErrorCode code, SourceLocation l
 void test_errors() {
     expect_error("1;", ParseErrorCode::expected_select, SourceLocation{0, 1, 1},
                  "statement must start with SELECT");
-    expect_error("SELECT;", ParseErrorCode::expected_integer_literal, SourceLocation{6, 1, 7},
-                 "SELECT requires an integer");
-    expect_error("SELECT 1,;", ParseErrorCode::expected_integer_literal, SourceLocation{9, 1, 10},
-                 "comma must be followed by an integer");
+    expect_error("SELECT;", ParseErrorCode::expected_literal, SourceLocation{6, 1, 7},
+                 "SELECT requires a literal");
+    expect_error("SELECT 1,;", ParseErrorCode::expected_literal, SourceLocation{9, 1, 10},
+                 "comma must be followed by a literal");
     expect_error("SELECT 1 2", ParseErrorCode::expected_comma_or_end, SourceLocation{9, 1, 10},
                  "expressions require a comma");
     expect_error("SELECT 1; 2", ParseErrorCode::expected_end_of_input, SourceLocation{10, 1, 11},

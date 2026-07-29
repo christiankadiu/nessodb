@@ -11,7 +11,7 @@ namespace minidb::sql {
 enum class ParseErrorCode {
     lexical_error,
     expected_select,
-    expected_integer_literal,
+    expected_literal,
     expected_comma_or_end,
     expected_end_of_input,
 };

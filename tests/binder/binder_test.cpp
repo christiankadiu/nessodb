@@ -65,11 +65,30 @@ void test_integer_overflow() {
     }
 }
 
+void test_unsupported_string_literal() {
+    Parser parser{"SELECT 'Alice';"};
+    const auto parsed = parser.parse_select_statement();
+    expect(parsed.has_value(), "string literal is syntactically valid");
+    if (!parsed) {
+        return;
+    }
+
+    const auto bound = bind_select_statement(*parsed);
+    expect(!bound, "string literal is not bound yet");
+    if (!bound) {
+        expect(bound.error().code == BindErrorCode::unsupported_literal,
+               "unsupported literal has expected error code");
+        expect(bound.error().location == SourceLocation{7, 1, 8},
+               "unsupported literal has expected location");
+    }
+}
+
 }  // namespace
 
 int main() {
     test_integer_literals();
     test_integer_overflow();
+    test_unsupported_string_literal();
 
     if (failures != 0) {
         std::cerr << failures << " binder assertion(s) failed\n";
