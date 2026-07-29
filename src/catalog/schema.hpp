@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/table_id.hpp"
 #include "types/logical_type.hpp"
 
 #include <string>
@@ -15,6 +16,7 @@ struct ColumnSchema {
 struct TableSchema {
     std::string name;
     std::vector<ColumnSchema> columns;
+    common::TableId id{};
 };
 
 }  // namespace minidb::catalog
