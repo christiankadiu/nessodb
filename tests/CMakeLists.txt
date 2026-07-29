@@ -85,3 +85,7 @@ add_test(NAME cli_select COMMAND minidb_cli "SELECT 1, 2;")
 set_tests_properties(cli_select PROPERTIES
     PASS_REGULAR_EXPRESSION "1 \\| 2"
 )
+add_test(NAME cli_text_select COMMAND minidb_cli "SELECT 'Alice';")
+set_tests_properties(cli_text_select PROPERTIES
+    PASS_REGULAR_EXPRESSION "Alice"
+)

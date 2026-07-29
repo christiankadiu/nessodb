@@ -16,6 +16,10 @@ void print_error(const minidb::engine::QueryError& error) {
         error);
 }
 
+void print_value(const minidb::types::Value& value) {
+    std::visit([](const auto& item) { std::cout << item; }, value);
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -34,7 +38,7 @@ int main(int argc, char* argv[]) {
         if (index != 0) {
             std::cout << " | ";
         }
-        std::cout << result->values[index];
+        print_value(result->values[index]);
     }
     std::cout << '\n';
     return 0;
