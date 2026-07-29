@@ -10,6 +10,7 @@ enum class TokenType {
     identifier,
     integer_literal,
     string_literal,
+    null_literal,
     select,
     comma,
     semicolon,
