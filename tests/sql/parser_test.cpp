@@ -21,7 +21,7 @@ void expect(bool condition, std::string_view description) {
 }
 
 void test_select_list() {
-    Parser parser{"SELECT 1, 'Alice';"};
+    Parser parser{"SELECT 1, 'Alice', NULL;"};
     const auto result = parser.parse_select_statement();
 
     expect(result.has_value(), "valid SELECT is parsed");
@@ -29,8 +29,8 @@ void test_select_list() {
         return;
     }
 
-    expect(result->expressions.size() == 2, "SELECT contains two expressions");
-    if (result->expressions.size() == 2) {
+    expect(result->expressions.size() == 3, "SELECT contains three expressions");
+    if (result->expressions.size() == 3) {
         expect(result->expressions[0].type == LiteralType::integer,
                "first expression is an integer");
         expect(result->expressions[0].text == "1", "integer text is preserved");
@@ -39,6 +39,9 @@ void test_select_list() {
         expect(result->expressions[1].type == LiteralType::string,
                "second expression is a string");
         expect(result->expressions[1].text == "'Alice'", "string text is preserved");
+        expect(result->expressions[2].type == LiteralType::null,
+               "third expression is NULL");
+        expect(result->expressions[2].text == "NULL", "NULL text is preserved");
     }
 }
 

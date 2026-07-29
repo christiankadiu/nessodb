@@ -20,13 +20,17 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         if (!token) {
             return std::unexpected(token.error());
         }
-        if (token->type != TokenType::integer_literal && token->type != TokenType::string_literal) {
+        if (token->type != TokenType::integer_literal && token->type != TokenType::string_literal &&
+            token->type != TokenType::null_literal) {
             return std::unexpected(ParseError{ParseErrorCode::expected_literal, token->location});
         }
 
-        const LiteralType literal_type = token->type == TokenType::integer_literal
-                                             ? LiteralType::integer
-                                             : LiteralType::string;
+        LiteralType literal_type = LiteralType::null;
+        if (token->type == TokenType::integer_literal) {
+            literal_type = LiteralType::integer;
+        } else if (token->type == TokenType::string_literal) {
+            literal_type = LiteralType::string;
+        }
         statement.expressions.push_back(
             LiteralExpression{literal_type, token->lexeme, token->location});
 

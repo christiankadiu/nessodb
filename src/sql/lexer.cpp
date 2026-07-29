@@ -13,8 +13,7 @@ bool is_identifier_part(char character) noexcept {
     return std::isalnum(static_cast<unsigned char>(character)) != 0 || character == '_';
 }
 
-bool is_select(std::string_view value) noexcept {
-    constexpr std::string_view keyword = "select";
+bool equals_case_insensitive(std::string_view value, std::string_view keyword) noexcept {
     if (value.size() != keyword.size()) {
         return false;
     }
@@ -98,8 +97,10 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
     }
 
     Token token = make_token(TokenType::identifier, start);
-    if (is_select(token.lexeme)) {
+    if (equals_case_insensitive(token.lexeme, "select")) {
         token.type = TokenType::select;
+    } else if (equals_case_insensitive(token.lexeme, "null")) {
+        token.type = TokenType::null_literal;
     }
     return token;
 }

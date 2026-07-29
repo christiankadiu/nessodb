@@ -6,6 +6,10 @@
 
 namespace minidb::types {
 
-using Value = std::variant<std::int64_t, std::string>;
+struct NullValue {
+    friend bool operator==(const NullValue&, const NullValue&) = default;
+};
+
+using Value = std::variant<NullValue, std::int64_t, std::string>;
 
 }  // namespace minidb::types

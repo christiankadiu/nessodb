@@ -93,6 +93,15 @@ void test_string_literals() {
     expect(escaped.lexeme == "'it''s done'", "escaped quote remains in the lexeme");
 }
 
+void test_null_keyword() {
+    Lexer lexer{"NULL NuLl nullable"};
+
+    expect(next_token(lexer).type == TokenType::null_literal, "NULL is recognized");
+    expect(next_token(lexer).type == TokenType::null_literal, "NULL is case-insensitive");
+    expect(next_token(lexer).type == TokenType::identifier,
+           "identifier beginning with null is preserved");
+}
+
 void test_invalid_character() {
     Lexer lexer{"@"};
     const auto result = lexer.next();
@@ -128,6 +137,7 @@ int main() {
     test_locations();
     test_select_delimiters();
     test_string_literals();
+    test_null_keyword();
     test_invalid_character();
     test_unterminated_string();
 

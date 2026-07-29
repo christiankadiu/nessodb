@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <iostream>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 
 namespace {
@@ -17,7 +18,16 @@ void print_error(const minidb::engine::QueryError& error) {
 }
 
 void print_value(const minidb::types::Value& value) {
-    std::visit([](const auto& item) { std::cout << item; }, value);
+    std::visit(
+        [](const auto& item) {
+            using Item = std::remove_cvref_t<decltype(item)>;
+            if constexpr (std::is_same_v<Item, minidb::types::NullValue>) {
+                std::cout << "NULL";
+            } else {
+                std::cout << item;
+            }
+        },
+        value);
 }
 
 }  // namespace

@@ -15,6 +15,7 @@ using minidb::binder::BindErrorCode;
 using minidb::binder::bind_select_statement;
 using minidb::sql::Parser;
 using minidb::sql::SourceLocation;
+using minidb::types::NullValue;
 
 int failures = 0;
 
@@ -93,12 +94,36 @@ void test_string_literals() {
     }
 }
 
+void test_null_literal() {
+    Parser parser{"SELECT NULL;"};
+    const auto parsed = parser.parse_select_statement();
+    expect(parsed.has_value(), "NULL literal is syntactically valid");
+    if (!parsed) {
+        return;
+    }
+
+    const auto bound = bind_select_statement(*parsed);
+    expect(bound.has_value(), "NULL literal is bound");
+    if (!bound) {
+        return;
+    }
+
+    expect(bound->expressions.size() == 1, "one NULL expression is bound");
+    if (bound->expressions.size() == 1) {
+        expect(std::holds_alternative<NullValue>(bound->expressions[0].value),
+               "bound value contains NULL");
+        expect(bound->expressions[0].location == SourceLocation{7, 1, 8},
+               "NULL source location is preserved");
+    }
+}
+
 }  // namespace
 
 int main() {
     test_integer_literals();
     test_integer_overflow();
     test_string_literals();
+    test_null_literal();
 
     if (failures != 0) {
         std::cerr << failures << " binder assertion(s) failed\n";
