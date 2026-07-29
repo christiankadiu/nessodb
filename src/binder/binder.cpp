@@ -1,7 +1,8 @@
 #include "binder/binder.hpp"
 
+#include "common/identifier.hpp"
+
 #include <charconv>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -55,21 +56,6 @@ std::expected<types::Value, BindError> bind_string(const sql::LiteralExpression&
     return types::Value{std::move(value)};
 }
 
-bool identifiers_equal(std::string_view left, std::string_view right) noexcept {
-    if (left.size() != right.size()) {
-        return false;
-    }
-
-    for (std::size_t index = 0; index < left.size(); ++index) {
-        const auto left_character = static_cast<unsigned char>(left[index]);
-        const auto right_character = static_cast<unsigned char>(right[index]);
-        if (std::tolower(left_character) != std::tolower(right_character)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -103,7 +89,7 @@ std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
 
     for (const auto& column : statement.columns) {
         for (const auto& existing_column : bound_statement.columns) {
-            if (identifiers_equal(column.name, existing_column.name)) {
+            if (common::identifiers_equal(column.name, existing_column.name)) {
                 return std::unexpected(
                     BindError{BindErrorCode::duplicate_column, column.location});
             }
