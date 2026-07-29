@@ -15,7 +15,8 @@ enum class CatalogError {
 
 class Catalog {
 public:
-    [[nodiscard]] std::expected<void, CatalogError> create_table(TableSchema schema);
+    [[nodiscard]] std::expected<const TableSchema*, CatalogError> create_table(
+        TableSchema schema);
     [[nodiscard]] const TableSchema* find_table(std::string_view name) const noexcept;
 
 private:

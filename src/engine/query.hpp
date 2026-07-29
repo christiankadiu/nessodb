@@ -4,6 +4,7 @@
 #include "sql/parser.hpp"
 #include "types/value.hpp"
 
+#include <cstddef>
 #include <expected>
 #include <string_view>
 #include <variant>
@@ -13,6 +14,7 @@ namespace minidb::engine {
 
 struct QueryResult {
     std::vector<types::Value> values;
+    std::size_t rows_affected{};
 };
 
 enum class ExecutionErrorCode {

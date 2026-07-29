@@ -3,6 +3,7 @@
 #include "binder/binder.hpp"
 #include "sql/parser.hpp"
 
+#include <stdexcept>
 #include <utility>
 #include <variant>
 
@@ -15,10 +16,7 @@ std::expected<QueryResult, QueryError> Database::execute(std::string_view source
         return std::unexpected(QueryError{parsed.error()});
     }
 
-    if (const auto* select = std::get_if<sql::SelectStatement>(&*parsed)) {
-        return execute(*select);
-    }
-    return execute(std::get<sql::CreateTableStatement>(*parsed));
+    return std::visit([this](const auto& statement) { return execute(statement); }, *parsed);
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
@@ -55,7 +53,26 @@ std::expected<QueryResult, QueryError> Database::execute(
         return std::unexpected(QueryError{ExecutionError{
             ExecutionErrorCode::table_already_exists, statement.table_location}});
     }
+
+    auto heap_created = heap_.create_table((*created)->id);
+    if (!heap_created) {
+        throw std::logic_error{"catalog and heap table state diverged"};
+    }
     return QueryResult{};
+}
+
+std::expected<QueryResult, QueryError> Database::execute(
+    const sql::InsertStatement& statement) {
+    auto bound = binder::bind_insert_statement(statement, catalog_);
+    if (!bound) {
+        return std::unexpected(QueryError{bound.error()});
+    }
+
+    auto inserted = heap_.insert(bound->table_id, storage::Row{std::move(bound->values)});
+    if (!inserted) {
+        throw std::logic_error{"catalog and heap table state diverged"};
+    }
+    return QueryResult{{}, 1};
 }
 
 }  // namespace minidb::engine

@@ -47,6 +47,6 @@ struct InsertStatement {
     std::vector<LiteralExpression> values;
 };
 
-using Statement = std::variant<SelectStatement, CreateTableStatement>;
+using Statement = std::variant<SelectStatement, CreateTableStatement, InsertStatement>;
 
 }  // namespace minidb::sql
