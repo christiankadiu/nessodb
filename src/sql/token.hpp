@@ -12,8 +12,14 @@ enum class TokenType {
     string_literal,
     null_literal,
     select,
+    create,
+    table,
+    integer_type,
+    text_type,
     comma,
     semicolon,
+    left_parenthesis,
+    right_parenthesis,
 };
 
 struct SourceLocation {

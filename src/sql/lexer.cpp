@@ -56,6 +56,12 @@ std::expected<Token, LexError> Lexer::next() {
     if (character == ';') {
         return make_token(TokenType::semicolon, start);
     }
+    if (character == '(') {
+        return make_token(TokenType::left_parenthesis, start);
+    }
+    if (character == ')') {
+        return make_token(TokenType::right_parenthesis, start);
+    }
 
     return std::unexpected(LexError{LexErrorCode::invalid_character, character, start});
 }
@@ -101,6 +107,14 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::select;
     } else if (equals_case_insensitive(token.lexeme, "null")) {
         token.type = TokenType::null_literal;
+    } else if (equals_case_insensitive(token.lexeme, "create")) {
+        token.type = TokenType::create;
+    } else if (equals_case_insensitive(token.lexeme, "table")) {
+        token.type = TokenType::table;
+    } else if (equals_case_insensitive(token.lexeme, "int")) {
+        token.type = TokenType::integer_type;
+    } else if (equals_case_insensitive(token.lexeme, "text")) {
+        token.type = TokenType::text_type;
     }
     return token;
 }
