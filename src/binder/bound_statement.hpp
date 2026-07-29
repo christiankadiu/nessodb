@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/table_id.hpp"
 #include "sql/token.hpp"
 #include "types/logical_type.hpp"
 #include "types/value.hpp"
@@ -28,6 +29,11 @@ struct BoundCreateTableStatement {
     std::string table_name;
     sql::SourceLocation table_location;
     std::vector<BoundColumnDefinition> columns;
+};
+
+struct BoundInsertStatement {
+    common::TableId table_id;
+    std::vector<types::Value> values;
 };
 
 }  // namespace minidb::binder

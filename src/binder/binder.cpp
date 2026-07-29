@@ -1,5 +1,6 @@
 #include "binder/binder.hpp"
 
+#include "catalog/catalog.hpp"
 #include "common/identifier.hpp"
 
 #include <charconv>
@@ -56,6 +57,31 @@ std::expected<types::Value, BindError> bind_string(const sql::LiteralExpression&
     return types::Value{std::move(value)};
 }
 
+std::expected<BoundLiteralExpression, BindError> bind_literal(
+    const sql::LiteralExpression& expression) {
+    types::Value value{types::NullValue{}};
+    if (expression.type != sql::LiteralType::null) {
+        auto bound_value = expression.type == sql::LiteralType::integer
+                               ? bind_integer(expression)
+                               : bind_string(expression);
+        if (!bound_value) {
+            return std::unexpected(bound_value.error());
+        }
+        value = std::move(*bound_value);
+    }
+    return BoundLiteralExpression{std::move(value), expression.location};
+}
+
+bool value_matches_type(const types::Value& value, types::LogicalType type) noexcept {
+    if (std::holds_alternative<types::NullValue>(value)) {
+        return true;
+    }
+    if (type == types::LogicalType::integer) {
+        return std::holds_alternative<std::int64_t>(value);
+    }
+    return std::holds_alternative<std::string>(value);
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -64,18 +90,11 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     bound_statement.expressions.reserve(statement.expressions.size());
 
     for (const auto& expression : statement.expressions) {
-        types::Value value{types::NullValue{}};
-        if (expression.type != sql::LiteralType::null) {
-            auto bound_value = expression.type == sql::LiteralType::integer
-                                   ? bind_integer(expression)
-                                   : bind_string(expression);
-            if (!bound_value) {
-                return std::unexpected(bound_value.error());
-            }
-            value = std::move(*bound_value);
+        auto bound_expression = bind_literal(expression);
+        if (!bound_expression) {
+            return std::unexpected(bound_expression.error());
         }
-        bound_statement.expressions.push_back(
-            BoundLiteralExpression{std::move(value), expression.location});
+        bound_statement.expressions.push_back(std::move(*bound_expression));
     }
 
     return bound_statement;
@@ -102,6 +121,34 @@ std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
             BoundColumnDefinition{std::string{column.name}, type, column.location});
     }
 
+    return bound_statement;
+}
+
+std::expected<BoundInsertStatement, BindError> bind_insert_statement(
+    const sql::InsertStatement& statement, const catalog::Catalog& catalog) {
+    const catalog::TableSchema* table = catalog.find_table(statement.table_name);
+    if (table == nullptr) {
+        return std::unexpected(
+            BindError{BindErrorCode::table_not_found, statement.table_location});
+    }
+    if (statement.values.size() != table->columns.size()) {
+        return std::unexpected(
+            BindError{BindErrorCode::column_count_mismatch, statement.table_location});
+    }
+
+    BoundInsertStatement bound_statement{table->id, {}};
+    bound_statement.values.reserve(statement.values.size());
+    for (std::size_t index = 0; index < statement.values.size(); ++index) {
+        auto expression = bind_literal(statement.values[index]);
+        if (!expression) {
+            return std::unexpected(expression.error());
+        }
+        if (!value_matches_type(expression->value, table->columns[index].type)) {
+            return std::unexpected(
+                BindError{BindErrorCode::type_mismatch, expression->location});
+        }
+        bound_statement.values.push_back(std::move(expression->value));
+    }
     return bound_statement;
 }
 
