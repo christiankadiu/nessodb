@@ -60,3 +60,28 @@ else()
 endif()
 
 add_test(NAME binder COMMAND minidb_binder_test)
+
+add_executable(minidb_query_test
+    engine/query_test.cpp
+)
+target_link_libraries(minidb_query_test PRIVATE MiniDB::minidb)
+target_include_directories(minidb_query_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+)
+set_target_properties(minidb_query_test PROPERTIES
+    CXX_EXTENSIONS OFF
+)
+
+if(MSVC)
+    target_compile_options(minidb_query_test PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(minidb_query_test PRIVATE
+        -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
+    )
+endif()
+
+add_test(NAME query COMMAND minidb_query_test)
+add_test(NAME cli_select COMMAND minidb_cli "SELECT 1, 2;")
+set_tests_properties(cli_select PROPERTIES
+    PASS_REGULAR_EXPRESSION "1 \\| 2"
+)
