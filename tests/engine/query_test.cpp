@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -22,7 +23,7 @@ void expect(bool condition, std::string_view description) {
 }
 
 void test_query_result() {
-    const auto result = execute_query("SELECT 1, 22;");
+    const auto result = execute_query("SELECT 1, 'Alice';");
 
     expect(result.has_value(), "valid query is executed");
     if (!result) {
@@ -31,8 +32,10 @@ void test_query_result() {
 
     expect(result->values.size() == 2, "query returns two values");
     if (result->values.size() == 2) {
-        expect(result->values[0] == std::int64_t{1}, "first value is returned");
-        expect(result->values[1] == std::int64_t{22}, "second value is returned");
+        expect(std::get<std::int64_t>(result->values[0]) == std::int64_t{1},
+               "integer value is returned");
+        expect(std::get<std::string>(result->values[1]) == "Alice",
+               "text value is returned");
     }
 }
 

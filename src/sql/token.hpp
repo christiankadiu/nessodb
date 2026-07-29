@@ -9,6 +9,7 @@ enum class TokenType {
     end_of_input,
     identifier,
     integer_literal,
+    string_literal,
     select,
     comma,
     semicolon,

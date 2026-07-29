@@ -1,19 +1,19 @@
 #pragma once
 
 #include "sql/token.hpp"
+#include "types/value.hpp"
 
-#include <cstdint>
 #include <vector>
 
 namespace minidb::binder {
 
-struct BoundIntegerExpression {
-    std::int64_t value{};
+struct BoundLiteralExpression {
+    types::Value value;
     sql::SourceLocation location;
 };
 
 struct BoundSelectStatement {
-    std::vector<BoundIntegerExpression> expressions;
+    std::vector<BoundLiteralExpression> expressions;
 };
 
 }  // namespace minidb::binder

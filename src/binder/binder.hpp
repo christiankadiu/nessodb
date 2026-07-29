@@ -9,6 +9,7 @@ namespace minidb::binder {
 
 enum class BindErrorCode {
     invalid_integer_literal,
+    invalid_string_literal,
     integer_out_of_range,
 };
 

@@ -5,7 +5,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <string>
 #include <string_view>
+#include <variant>
 
 namespace {
 
@@ -39,8 +41,9 @@ void test_integer_literals() {
 
     expect(bound->expressions.size() == 2, "two expressions are bound");
     if (bound->expressions.size() == 2) {
-        expect(bound->expressions[0].value == 0, "zero is converted");
-        expect(bound->expressions[1].value == std::numeric_limits<std::int64_t>::max(),
+        expect(std::get<std::int64_t>(bound->expressions[0].value) == 0, "zero is converted");
+        expect(std::get<std::int64_t>(bound->expressions[1].value) ==
+                   std::numeric_limits<std::int64_t>::max(),
                "maximum signed integer is converted");
         expect(bound->expressions[1].location == SourceLocation{10, 1, 11},
                "source location is preserved");
@@ -65,11 +68,37 @@ void test_integer_overflow() {
     }
 }
 
+void test_string_literals() {
+    Parser parser{"SELECT 'Alice', 'it''s done', '';"};
+    const auto parsed = parser.parse_select_statement();
+    expect(parsed.has_value(), "string literal is syntactically valid");
+    if (!parsed) {
+        return;
+    }
+
+    const auto bound = bind_select_statement(*parsed);
+    expect(bound.has_value(), "string literals are bound");
+    if (!bound) {
+        return;
+    }
+
+    expect(bound->expressions.size() == 3, "three strings are bound");
+    if (bound->expressions.size() == 3) {
+        expect(std::get<std::string>(bound->expressions[0].value) == "Alice",
+               "quotes are removed");
+        expect(std::get<std::string>(bound->expressions[1].value) == "it's done",
+               "escaped quote is decoded");
+        expect(std::get<std::string>(bound->expressions[2].value).empty(),
+               "empty string is decoded");
+    }
+}
+
 }  // namespace
 
 int main() {
     test_integer_literals();
     test_integer_overflow();
+    test_string_literals();
 
     if (failures != 0) {
         std::cerr << failures << " binder assertion(s) failed\n";
