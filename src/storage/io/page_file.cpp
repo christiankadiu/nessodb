@@ -91,6 +91,17 @@ const std::filesystem::path& PageFile::path() const noexcept {
     return path_;
 }
 
+std::expected<std::uint64_t, PageFileError> PageFile::page_count() {
+    const auto size = file_size();
+    if (!size) {
+        return std::unexpected(size.error());
+    }
+    if (*size % static_cast<std::streamoff>(page_size) != 0) {
+        return std::unexpected(PageFileError::invalid_file_size);
+    }
+    return static_cast<std::uint64_t>(*size / static_cast<std::streamoff>(page_size));
+}
+
 std::expected<PageBuffer, PageFileError> PageFile::read_page(common::PageId page_id) {
     const auto offset = page_offset(page_id);
     if (!offset) {
@@ -148,6 +159,14 @@ std::expected<void, PageFileError> PageFile::write_page(common::PageId page_id,
     }
     stream_.write(reinterpret_cast<const char*>(page.data()),
                   static_cast<std::streamsize>(page.size()));
+    if (!stream_) {
+        return std::unexpected(PageFileError::write_failed);
+    }
+    return {};
+}
+
+std::expected<void, PageFileError> PageFile::flush() {
+    stream_.flush();
     if (!stream_) {
         return std::unexpected(PageFileError::write_failed);
     }

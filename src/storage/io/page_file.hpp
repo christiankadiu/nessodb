@@ -3,6 +3,7 @@
 #include "common/page_id.hpp"
 #include "storage/page/page.hpp"
 
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -40,10 +41,12 @@ public:
 
     [[nodiscard]] bool is_open() const noexcept;
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
+    [[nodiscard]] std::expected<std::uint64_t, PageFileError> page_count();
     [[nodiscard]] std::expected<PageBuffer, PageFileError> read_page(
         common::PageId page_id);
     [[nodiscard]] std::expected<void, PageFileError> write_page(
         common::PageId page_id, const PageBuffer& page);
+    [[nodiscard]] std::expected<void, PageFileError> flush();
 
 private:
     PageFile(std::filesystem::path path, std::fstream stream);
