@@ -130,4 +130,61 @@ std::expected<common::PageId, DatabaseFileError> DatabaseFile::allocate_heap_pag
     return page_id;
 }
 
+std::expected<PageBuffer, DatabaseFileError> DatabaseFile::read_heap_page(
+    common::PageId page_id) {
+    if (!page_id.is_valid() || page_id.value == 0 || page_id.value >= header_.page_count) {
+        return std::unexpected(
+            DatabaseFileError{DatabaseFileStructureError::invalid_heap_page_id});
+    }
+
+    auto page = page_file_.read_page(page_id);
+    if (!page) {
+        return std::unexpected(DatabaseFileError{page.error()});
+    }
+    auto checksum = verify_page_checksum(*page);
+    if (!checksum) {
+        return std::unexpected(DatabaseFileError{checksum.error()});
+    }
+    auto slotted_page = SlottedPage::open(*page);
+    if (!slotted_page) {
+        return std::unexpected(DatabaseFileError{slotted_page.error()});
+    }
+    if (slotted_page->page_id() != page_id) {
+        return std::unexpected(
+            DatabaseFileError{DatabaseFileStructureError::page_id_mismatch});
+    }
+    return page;
+}
+
+std::expected<void, DatabaseFileError> DatabaseFile::write_heap_page(
+    common::PageId page_id, const PageBuffer& page) {
+    if (!page_id.is_valid() || page_id.value == 0 || page_id.value >= header_.page_count) {
+        return std::unexpected(
+            DatabaseFileError{DatabaseFileStructureError::invalid_heap_page_id});
+    }
+
+    PageBuffer page_to_write = page;
+    auto slotted_page = SlottedPage::open(page_to_write);
+    if (!slotted_page) {
+        return std::unexpected(DatabaseFileError{slotted_page.error()});
+    }
+    if (slotted_page->page_id() != page_id) {
+        return std::unexpected(
+            DatabaseFileError{DatabaseFileStructureError::page_id_mismatch});
+    }
+    auto checksum = update_page_checksum(page_to_write);
+    if (!checksum) {
+        return std::unexpected(DatabaseFileError{checksum.error()});
+    }
+    auto written = page_file_.write_page(page_id, page_to_write);
+    if (!written) {
+        return std::unexpected(DatabaseFileError{written.error()});
+    }
+    auto flushed = page_file_.flush();
+    if (!flushed) {
+        return std::unexpected(DatabaseFileError{flushed.error()});
+    }
+    return {};
+}
+
 }  // namespace minidb::storage

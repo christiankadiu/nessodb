@@ -14,6 +14,8 @@ namespace minidb::storage {
 enum class DatabaseFileStructureError {
     page_count_mismatch,
     page_id_exhausted,
+    invalid_heap_page_id,
+    page_id_mismatch,
 };
 
 using DatabaseFileError = std::variant<PageFileError, PageChecksumError,
@@ -36,6 +38,10 @@ public:
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] const DatabaseHeader& header() const noexcept;
     [[nodiscard]] std::expected<common::PageId, DatabaseFileError> allocate_heap_page();
+    [[nodiscard]] std::expected<PageBuffer, DatabaseFileError> read_heap_page(
+        common::PageId page_id);
+    [[nodiscard]] std::expected<void, DatabaseFileError> write_heap_page(
+        common::PageId page_id, const PageBuffer& page);
 
 private:
     DatabaseFile(PageFile page_file, DatabaseHeader header);
