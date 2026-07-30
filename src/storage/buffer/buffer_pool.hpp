@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <list>
 #include <memory>
 #include <unordered_map>
 #include <variant>
@@ -15,6 +16,7 @@ namespace minidb::storage {
 
 enum class BufferPoolErrorCode {
     capacity_exceeded,
+    all_pages_pinned,
 };
 
 using BufferPoolError = std::variant<DatabaseFileError, BufferPoolErrorCode>;
@@ -36,9 +38,18 @@ public:
         common::PageId page_id);
 
 private:
+    struct Frame {
+        std::shared_ptr<PageBuffer> page;
+        std::list<std::uint64_t>::iterator recency;
+    };
+
+    void touch(Frame& frame) noexcept;
+    [[nodiscard]] bool evict_page() noexcept;
+
     DatabaseFile& database_file_;
     std::size_t capacity_;
-    std::unordered_map<std::uint64_t, std::shared_ptr<PageBuffer>> pages_;
+    std::list<std::uint64_t> recency_;
+    std::unordered_map<std::uint64_t, Frame> pages_;
 };
 
 }  // namespace minidb::storage

@@ -21,9 +21,10 @@ std::expected<ReadPageHandle, BufferPoolError> BufferPool::fetch_heap_page(
     common::PageId page_id) {
     const auto cached = pages_.find(page_id.value);
     if (cached != pages_.end()) {
-        return ReadPageHandle{cached->second};
+        touch(cached->second);
+        return ReadPageHandle{cached->second.page};
     }
-    if (pages_.size() >= capacity_) {
+    if (capacity_ == 0) {
         return std::unexpected(BufferPoolError{BufferPoolErrorCode::capacity_exceeded});
     }
 
@@ -31,10 +32,38 @@ std::expected<ReadPageHandle, BufferPoolError> BufferPool::fetch_heap_page(
     if (!page) {
         return std::unexpected(BufferPoolError{page.error()});
     }
+    if (pages_.size() >= capacity_ && !evict_page()) {
+        return std::unexpected(BufferPoolError{BufferPoolErrorCode::all_pages_pinned});
+    }
 
     auto stored_page = std::make_shared<PageBuffer>(std::move(*page));
-    pages_.emplace(page_id.value, stored_page);
+    recency_.push_front(page_id.value);
+    try {
+        pages_.emplace(page_id.value, Frame{stored_page, recency_.begin()});
+    } catch (...) {
+        recency_.pop_front();
+        throw;
+    }
     return ReadPageHandle{std::move(stored_page)};
+}
+
+void BufferPool::touch(Frame& frame) noexcept {
+    recency_.splice(recency_.begin(), recency_, frame.recency);
+    frame.recency = recency_.begin();
+}
+
+bool BufferPool::evict_page() noexcept {
+    auto candidate = recency_.end();
+    while (candidate != recency_.begin()) {
+        --candidate;
+        auto frame = pages_.find(*candidate);
+        if (frame->second.page.use_count() == 1) {
+            pages_.erase(frame);
+            recency_.erase(candidate);
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace minidb::storage
