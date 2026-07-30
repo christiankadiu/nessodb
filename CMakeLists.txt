@@ -17,6 +17,7 @@ add_library(minidb
     src/sql/parser.cpp
     src/storage/access/in_memory_heap.cpp
     src/storage/page/checksum.cpp
+    src/storage/page/database_header.cpp
     src/storage/page/page_header.cpp
     src/storage/page/slotted_page.cpp
 )
