@@ -105,6 +105,8 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
     Token token = make_token(TokenType::identifier, start);
     if (equals_case_insensitive(token.lexeme, "select")) {
         token.type = TokenType::select;
+    } else if (equals_case_insensitive(token.lexeme, "from")) {
+        token.type = TokenType::from;
     } else if (equals_case_insensitive(token.lexeme, "null")) {
         token.type = TokenType::null_literal;
     } else if (equals_case_insensitive(token.lexeme, "create")) {

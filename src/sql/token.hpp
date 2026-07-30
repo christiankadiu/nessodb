@@ -12,6 +12,7 @@ enum class TokenType {
     string_literal,
     null_literal,
     select,
+    from,
     create,
     table,
     insert,
