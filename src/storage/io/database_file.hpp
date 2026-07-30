@@ -3,6 +3,7 @@
 #include "storage/io/page_file.hpp"
 #include "storage/page/checksum.hpp"
 #include "storage/page/database_header.hpp"
+#include "storage/page/slotted_page.hpp"
 
 #include <expected>
 #include <filesystem>
@@ -12,10 +13,12 @@ namespace minidb::storage {
 
 enum class DatabaseFileStructureError {
     page_count_mismatch,
+    page_id_exhausted,
 };
 
 using DatabaseFileError = std::variant<PageFileError, PageChecksumError,
-                                       DatabaseHeaderError, DatabaseFileStructureError>;
+                                       DatabaseHeaderError, SlottedPageError,
+                                       DatabaseFileStructureError>;
 
 class DatabaseFile {
 public:
@@ -32,6 +35,7 @@ public:
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] const DatabaseHeader& header() const noexcept;
+    [[nodiscard]] std::expected<common::PageId, DatabaseFileError> allocate_heap_page();
 
 private:
     DatabaseFile(PageFile page_file, DatabaseHeader header);

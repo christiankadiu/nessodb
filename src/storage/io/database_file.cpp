@@ -6,6 +6,23 @@
 #include <utility>
 
 namespace minidb::storage {
+namespace {
+
+std::expected<PageBuffer, DatabaseFileError> make_header_page(
+    const DatabaseHeader& header) noexcept {
+    PageBuffer page{};
+    auto encoded = encode_database_header(page, header);
+    if (!encoded) {
+        return std::unexpected(DatabaseFileError{encoded.error()});
+    }
+    auto checksummed = update_page_checksum(page);
+    if (!checksummed) {
+        return std::unexpected(DatabaseFileError{checksummed.error()});
+    }
+    return page;
+}
+
+}  // namespace
 
 std::expected<DatabaseFile, DatabaseFileError> DatabaseFile::create(
     const std::filesystem::path& path) {
@@ -15,16 +32,11 @@ std::expected<DatabaseFile, DatabaseFileError> DatabaseFile::create(
     }
 
     DatabaseHeader header;
-    PageBuffer header_page{};
-    auto encoded = encode_database_header(header_page, header);
-    if (!encoded) {
-        return std::unexpected(DatabaseFileError{encoded.error()});
+    auto header_page = make_header_page(header);
+    if (!header_page) {
+        return std::unexpected(header_page.error());
     }
-    auto checksummed = update_page_checksum(header_page);
-    if (!checksummed) {
-        return std::unexpected(DatabaseFileError{checksummed.error()});
-    }
-    auto written = page_file->write_page(common::PageId{0}, header_page);
+    auto written = page_file->write_page(common::PageId{0}, *header_page);
     if (!written) {
         return std::unexpected(DatabaseFileError{written.error()});
     }
@@ -75,6 +87,47 @@ const std::filesystem::path& DatabaseFile::path() const noexcept {
 
 const DatabaseHeader& DatabaseFile::header() const noexcept {
     return header_;
+}
+
+std::expected<common::PageId, DatabaseFileError> DatabaseFile::allocate_heap_page() {
+    if (header_.page_count == common::PageId::invalid_value) {
+        return std::unexpected(
+            DatabaseFileError{DatabaseFileStructureError::page_id_exhausted});
+    }
+
+    const common::PageId page_id{header_.page_count};
+    PageBuffer heap_page{};
+    auto initialized = SlottedPage::initialize(heap_page, page_id);
+    if (!initialized) {
+        return std::unexpected(DatabaseFileError{initialized.error()});
+    }
+    auto heap_checksum = update_page_checksum(heap_page);
+    if (!heap_checksum) {
+        return std::unexpected(DatabaseFileError{heap_checksum.error()});
+    }
+
+    DatabaseHeader updated_header = header_;
+    ++updated_header.page_count;
+    auto header_page = make_header_page(updated_header);
+    if (!header_page) {
+        return std::unexpected(header_page.error());
+    }
+
+    auto heap_written = page_file_.write_page(page_id, heap_page);
+    if (!heap_written) {
+        return std::unexpected(DatabaseFileError{heap_written.error()});
+    }
+    auto header_written = page_file_.write_page(common::PageId{0}, *header_page);
+    if (!header_written) {
+        return std::unexpected(DatabaseFileError{header_written.error()});
+    }
+    header_ = updated_header;
+
+    auto flushed = page_file_.flush();
+    if (!flushed) {
+        return std::unexpected(DatabaseFileError{flushed.error()});
+    }
+    return page_id;
 }
 
 }  // namespace minidb::storage
