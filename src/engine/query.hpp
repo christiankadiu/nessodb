@@ -12,8 +12,12 @@
 
 namespace minidb::engine {
 
-struct QueryResult {
+struct ResultRow {
     std::vector<types::Value> values;
+};
+
+struct QueryResult {
+    std::vector<ResultRow> rows;
     std::size_t rows_affected{};
 };
 

@@ -44,12 +44,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    for (std::size_t index = 0; index < result->values.size(); ++index) {
-        if (index != 0) {
-            std::cout << " | ";
+    for (const auto& row : result->rows) {
+        for (std::size_t index = 0; index < row.values.size(); ++index) {
+            if (index != 0) {
+                std::cout << " | ";
+            }
+            print_value(row.values[index]);
         }
-        print_value(result->values[index]);
+        std::cout << '\n';
     }
-    std::cout << '\n';
     return 0;
 }

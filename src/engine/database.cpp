@@ -26,11 +26,13 @@ std::expected<QueryResult, QueryError> Database::execute(
         return std::unexpected(QueryError{bound.error()});
     }
 
-    QueryResult result;
-    result.values.reserve(bound->expressions.size());
+    ResultRow row;
+    row.values.reserve(bound->expressions.size());
     for (const auto& expression : bound->expressions) {
-        result.values.push_back(expression.value);
+        row.values.push_back(expression.value);
     }
+    QueryResult result;
+    result.rows.push_back(std::move(row));
     return result;
 }
 
