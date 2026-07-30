@@ -21,6 +21,7 @@ enum class BufferPoolErrorCode {
 
 using BufferPoolError = std::variant<DatabaseFileError, BufferPoolErrorCode>;
 using ReadPageHandle = std::shared_ptr<const PageBuffer>;
+using WritePageHandle = std::shared_ptr<PageBuffer>;
 
 class BufferPool {
 public:
@@ -36,15 +37,19 @@ public:
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] std::expected<ReadPageHandle, BufferPoolError> fetch_heap_page(
         common::PageId page_id);
+    [[nodiscard]] std::expected<WritePageHandle, BufferPoolError> fetch_heap_page_for_write(
+        common::PageId page_id);
+    [[nodiscard]] std::expected<void, BufferPoolError> flush();
 
 private:
     struct Frame {
         std::shared_ptr<PageBuffer> page;
         std::list<std::uint64_t>::iterator recency;
+        bool dirty{};
     };
 
     void touch(Frame& frame) noexcept;
-    [[nodiscard]] bool evict_page() noexcept;
+    [[nodiscard]] std::expected<bool, DatabaseFileError> evict_page();
 
     DatabaseFile& database_file_;
     std::size_t capacity_;
