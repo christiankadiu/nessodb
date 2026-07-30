@@ -1,5 +1,7 @@
 #include "storage/io/page_file.hpp"
 
+#include <cstdint>
+#include <limits>
 #include <system_error>
 #include <utility>
 
@@ -9,6 +11,20 @@ namespace {
 std::filesystem::file_status get_status(const std::filesystem::path& path,
                                         std::error_code& error) noexcept {
     return std::filesystem::symlink_status(path, error);
+}
+
+std::expected<std::streamoff, PageFileError> page_offset(common::PageId page_id) noexcept {
+    if (!page_id.is_valid()) {
+        return std::unexpected(PageFileError::invalid_page_id);
+    }
+
+    constexpr auto maximum_offset = std::numeric_limits<std::streamoff>::max();
+    const auto maximum_page_id =
+        static_cast<std::uint64_t>(maximum_offset) / static_cast<std::uint64_t>(page_size);
+    if (page_id.value > maximum_page_id) {
+        return std::unexpected(PageFileError::page_offset_out_of_range);
+    }
+    return static_cast<std::streamoff>(page_id.value * page_size);
 }
 
 }  // namespace
@@ -73,6 +89,82 @@ bool PageFile::is_open() const noexcept {
 
 const std::filesystem::path& PageFile::path() const noexcept {
     return path_;
+}
+
+std::expected<PageBuffer, PageFileError> PageFile::read_page(common::PageId page_id) {
+    const auto offset = page_offset(page_id);
+    if (!offset) {
+        return std::unexpected(offset.error());
+    }
+
+    const auto size = file_size();
+    if (!size) {
+        return std::unexpected(size.error());
+    }
+    if (*size % static_cast<std::streamoff>(page_size) != 0) {
+        return std::unexpected(PageFileError::invalid_file_size);
+    }
+    if (*offset >= *size) {
+        return std::unexpected(PageFileError::page_not_found);
+    }
+
+    stream_.clear();
+    stream_.seekg(*offset);
+    if (!stream_) {
+        return std::unexpected(PageFileError::seek_failed);
+    }
+
+    PageBuffer page{};
+    stream_.read(reinterpret_cast<char*>(page.data()),
+                 static_cast<std::streamsize>(page.size()));
+    if (!stream_) {
+        return std::unexpected(PageFileError::read_failed);
+    }
+    return page;
+}
+
+std::expected<void, PageFileError> PageFile::write_page(common::PageId page_id,
+                                                        const PageBuffer& page) {
+    const auto offset = page_offset(page_id);
+    if (!offset) {
+        return std::unexpected(offset.error());
+    }
+
+    const auto size = file_size();
+    if (!size) {
+        return std::unexpected(size.error());
+    }
+    if (*size % static_cast<std::streamoff>(page_size) != 0) {
+        return std::unexpected(PageFileError::invalid_file_size);
+    }
+    if (*offset > *size) {
+        return std::unexpected(PageFileError::non_contiguous_write);
+    }
+
+    stream_.clear();
+    stream_.seekp(*offset);
+    if (!stream_) {
+        return std::unexpected(PageFileError::seek_failed);
+    }
+    stream_.write(reinterpret_cast<const char*>(page.data()),
+                  static_cast<std::streamsize>(page.size()));
+    if (!stream_) {
+        return std::unexpected(PageFileError::write_failed);
+    }
+    return {};
+}
+
+std::expected<std::streamoff, PageFileError> PageFile::file_size() {
+    stream_.clear();
+    stream_.seekg(0, std::ios::end);
+    if (!stream_) {
+        return std::unexpected(PageFileError::seek_failed);
+    }
+    const auto size = stream_.tellg();
+    if (size < 0) {
+        return std::unexpected(PageFileError::seek_failed);
+    }
+    return size;
 }
 
 }  // namespace minidb::storage

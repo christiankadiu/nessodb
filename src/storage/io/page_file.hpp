@@ -1,5 +1,8 @@
 #pragma once
 
+#include "common/page_id.hpp"
+#include "storage/page/page.hpp"
+
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -12,6 +15,14 @@ enum class PageFileError {
     path_already_exists,
     not_regular_file,
     open_failed,
+    invalid_page_id,
+    page_offset_out_of_range,
+    invalid_file_size,
+    page_not_found,
+    non_contiguous_write,
+    seek_failed,
+    read_failed,
+    write_failed,
 };
 
 class PageFile {
@@ -29,9 +40,15 @@ public:
 
     [[nodiscard]] bool is_open() const noexcept;
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
+    [[nodiscard]] std::expected<PageBuffer, PageFileError> read_page(
+        common::PageId page_id);
+    [[nodiscard]] std::expected<void, PageFileError> write_page(
+        common::PageId page_id, const PageBuffer& page);
 
 private:
     PageFile(std::filesystem::path path, std::fstream stream);
+
+    [[nodiscard]] std::expected<std::streamoff, PageFileError> file_size();
 
     std::filesystem::path path_;
     std::fstream stream_;
