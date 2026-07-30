@@ -23,6 +23,11 @@ using BufferPoolError = std::variant<DatabaseFileError, BufferPoolErrorCode>;
 using ReadPageHandle = std::shared_ptr<const PageBuffer>;
 using WritePageHandle = std::shared_ptr<PageBuffer>;
 
+struct AllocatedHeapPage {
+    common::PageId page_id;
+    WritePageHandle page;
+};
+
 class BufferPool {
 public:
     BufferPool(DatabaseFile& database_file, std::size_t capacity);
@@ -35,6 +40,7 @@ public:
 
     [[nodiscard]] std::size_t capacity() const noexcept;
     [[nodiscard]] std::size_t size() const noexcept;
+    [[nodiscard]] std::expected<AllocatedHeapPage, BufferPoolError> allocate_heap_page();
     [[nodiscard]] std::expected<ReadPageHandle, BufferPoolError> fetch_heap_page(
         common::PageId page_id);
     [[nodiscard]] std::expected<WritePageHandle, BufferPoolError> fetch_heap_page_for_write(
@@ -49,6 +55,7 @@ private:
     };
 
     void touch(Frame& frame) noexcept;
+    [[nodiscard]] std::expected<void, BufferPoolError> ensure_available_frame();
     [[nodiscard]] std::expected<bool, DatabaseFileError> evict_page();
 
     DatabaseFile& database_file_;

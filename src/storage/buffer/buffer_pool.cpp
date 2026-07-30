@@ -17,6 +17,23 @@ std::size_t BufferPool::size() const noexcept {
     return pages_.size();
 }
 
+std::expected<AllocatedHeapPage, BufferPoolError> BufferPool::allocate_heap_page() {
+    auto available = ensure_available_frame();
+    if (!available) {
+        return std::unexpected(available.error());
+    }
+
+    auto page_id = database_file_.allocate_heap_page();
+    if (!page_id) {
+        return std::unexpected(BufferPoolError{page_id.error()});
+    }
+    auto page = fetch_heap_page_for_write(*page_id);
+    if (!page) {
+        return std::unexpected(page.error());
+    }
+    return AllocatedHeapPage{*page_id, std::move(*page)};
+}
+
 std::expected<ReadPageHandle, BufferPoolError> BufferPool::fetch_heap_page(
     common::PageId page_id) {
     const auto cached = pages_.find(page_id.value);
@@ -32,14 +49,9 @@ std::expected<ReadPageHandle, BufferPoolError> BufferPool::fetch_heap_page(
     if (!page) {
         return std::unexpected(BufferPoolError{page.error()});
     }
-    if (pages_.size() >= capacity_) {
-        auto evicted = evict_page();
-        if (!evicted) {
-            return std::unexpected(BufferPoolError{evicted.error()});
-        }
-        if (!*evicted) {
-            return std::unexpected(BufferPoolError{BufferPoolErrorCode::all_pages_pinned});
-        }
+    auto available = ensure_available_frame();
+    if (!available) {
+        return std::unexpected(available.error());
     }
 
     auto stored_page = std::make_shared<PageBuffer>(std::move(*page));
@@ -84,6 +96,24 @@ std::expected<void, BufferPoolError> BufferPool::flush() {
 void BufferPool::touch(Frame& frame) noexcept {
     recency_.splice(recency_.begin(), recency_, frame.recency);
     frame.recency = recency_.begin();
+}
+
+std::expected<void, BufferPoolError> BufferPool::ensure_available_frame() {
+    if (pages_.size() < capacity_) {
+        return {};
+    }
+    if (capacity_ == 0) {
+        return std::unexpected(BufferPoolError{BufferPoolErrorCode::capacity_exceeded});
+    }
+
+    auto evicted = evict_page();
+    if (!evicted) {
+        return std::unexpected(BufferPoolError{evicted.error()});
+    }
+    if (!*evicted) {
+        return std::unexpected(BufferPoolError{BufferPoolErrorCode::all_pages_pinned});
+    }
+    return {};
 }
 
 std::expected<bool, DatabaseFileError> BufferPool::evict_page() {
