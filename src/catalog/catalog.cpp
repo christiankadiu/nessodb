@@ -6,7 +6,7 @@
 
 namespace minidb::catalog {
 
-std::expected<void, CatalogError> Catalog::create_table(TableSchema schema) {
+std::expected<const TableSchema*, CatalogError> Catalog::create_table(TableSchema schema) {
     if (find_table(schema.name) != nullptr) {
         return std::unexpected(CatalogError::table_already_exists);
     }
@@ -14,7 +14,7 @@ std::expected<void, CatalogError> Catalog::create_table(TableSchema schema) {
     schema.id = common::TableId{next_table_id_};
     ++next_table_id_;
     tables_.push_back(std::move(schema));
-    return {};
+    return &tables_.back();
 }
 
 const TableSchema* Catalog::find_table(std::string_view name) const noexcept {

@@ -21,6 +21,9 @@ enum class ParseErrorCode {
     expected_left_parenthesis,
     expected_column_type,
     expected_comma_or_right_parenthesis,
+    expected_insert,
+    expected_into,
+    expected_values,
 };
 
 struct ParseError {
@@ -35,6 +38,7 @@ public:
     [[nodiscard]] std::expected<Statement, ParseError> parse_statement();
     [[nodiscard]] std::expected<SelectStatement, ParseError> parse_select_statement();
     [[nodiscard]] std::expected<CreateTableStatement, ParseError> parse_create_table_statement();
+    [[nodiscard]] std::expected<InsertStatement, ParseError> parse_insert_statement();
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
