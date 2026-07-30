@@ -17,6 +17,7 @@ struct BoundLiteralExpression {
 
 struct BoundSelectStatement {
     std::vector<BoundLiteralExpression> expressions;
+    common::TableId table_id;
 };
 
 struct BoundColumnDefinition {

@@ -21,9 +21,23 @@ std::expected<QueryResult, QueryError> Database::execute(std::string_view source
 
 std::expected<QueryResult, QueryError> Database::execute(
     const sql::SelectStatement& statement) {
-    auto bound = binder::bind_select_statement(statement);
+    auto bound = binder::bind_select_statement(statement, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
+    }
+
+    if (bound->table_id.is_valid()) {
+        auto stored_rows = heap_.scan(bound->table_id);
+        if (!stored_rows) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
+
+        QueryResult result;
+        result.rows.reserve(stored_rows->size());
+        for (const auto& stored_row : *stored_rows) {
+            result.rows.push_back(ResultRow{stored_row.values});
+        }
+        return result;
     }
 
     ResultRow row;

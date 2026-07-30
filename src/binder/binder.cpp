@@ -85,7 +85,19 @@ bool value_matches_type(const types::Value& value, types::LogicalType type) noex
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
-    const sql::SelectStatement& statement) {
+    const sql::SelectStatement& statement, const catalog::Catalog& catalog) {
+    if (statement.select_all_columns) {
+        if (!statement.from) {
+            return std::unexpected(BindError{BindErrorCode::table_not_found, {}});
+        }
+        const catalog::TableSchema* table = catalog.find_table(statement.from->name);
+        if (table == nullptr) {
+            return std::unexpected(
+                BindError{BindErrorCode::table_not_found, statement.from->location});
+        }
+        return BoundSelectStatement{{}, table->id};
+    }
+
     BoundSelectStatement bound_statement;
     bound_statement.expressions.reserve(statement.expressions.size());
 

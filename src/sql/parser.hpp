@@ -13,6 +13,7 @@ enum class ParseErrorCode {
     expected_statement,
     expected_select,
     expected_literal,
+    expected_from,
     expected_comma_or_end,
     expected_end_of_input,
     expected_create,

@@ -68,6 +68,44 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     SelectStatement statement;
     token = next_token();
 
+    if (token && token->type == TokenType::star) {
+        statement.select_all_columns = true;
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::from) {
+            return std::unexpected(ParseError{ParseErrorCode::expected_from, token->location});
+        }
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::identifier) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_identifier, token->location});
+        }
+        statement.from = TableReference{token->lexeme, token->location};
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type == TokenType::semicolon) {
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+        }
+        if (token->type != TokenType::end_of_input) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_end_of_input, token->location});
+        }
+        return statement;
+    }
+
     while (true) {
         if (!token) {
             return std::unexpected(token.error());
