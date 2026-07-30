@@ -20,6 +20,7 @@ enum class TokenType {
     values,
     integer_type,
     text_type,
+    star,
     comma,
     semicolon,
     left_parenthesis,
