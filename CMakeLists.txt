@@ -16,6 +16,7 @@ add_library(minidb
     src/sql/lexer.cpp
     src/sql/parser.cpp
     src/storage/access/in_memory_heap.cpp
+    src/storage/buffer/buffer_pool.cpp
     src/storage/io/database_file.cpp
     src/storage/io/page_file.cpp
     src/storage/page/checksum.cpp
