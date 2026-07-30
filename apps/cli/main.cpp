@@ -1,4 +1,4 @@
-#include "engine/query.hpp"
+#include "engine/database.hpp"
 
 #include <cstddef>
 #include <iostream>
@@ -30,26 +30,35 @@ void print_value(const minidb::types::Value& value) {
         value);
 }
 
+void print_result(const minidb::engine::QueryResult& result) {
+    for (const auto& row : result.rows) {
+        for (std::size_t index = 0; index < row.values.size(); ++index) {
+            if (index != 0) {
+                std::cout << " | ";
+            }
+            print_value(row.values[index]);
+        }
+        std::cout << '\n';
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: minidb \"SELECT ...\"\n";
+    if (argc < 2) {
+        std::cerr << "Usage: minidb \"SQL statement\" [\"SQL statement\" ...]\n";
         return 2;
     }
 
-    const auto result = minidb::engine::execute_query(std::string_view{argv[1]});
-    if (!result) {
-        print_error(result.error());
-        return 1;
-    }
-
-    for (std::size_t index = 0; index < result->values.size(); ++index) {
-        if (index != 0) {
-            std::cout << " | ";
+    minidb::engine::Database database;
+    for (int index = 1; index < argc; ++index) {
+        const auto result = database.execute(std::string_view{argv[index]});
+        if (!result) {
+            print_error(result.error());
+            return 1;
         }
-        print_value(result->values[index]);
+
+        print_result(*result);
     }
-    std::cout << '\n';
     return 0;
 }

@@ -2,6 +2,7 @@
 
 #include "sql/token.hpp"
 
+#include <optional>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -20,8 +21,15 @@ struct LiteralExpression {
     SourceLocation location;
 };
 
+struct TableReference {
+    std::string_view name;
+    SourceLocation location;
+};
+
 struct SelectStatement {
     std::vector<LiteralExpression> expressions;
+    bool select_all_columns{};
+    std::optional<TableReference> from;
 };
 
 enum class ColumnType {

@@ -29,7 +29,7 @@ struct BindError {
 };
 
 [[nodiscard]] std::expected<BoundSelectStatement, BindError> bind_select_statement(
-    const sql::SelectStatement& statement);
+    const sql::SelectStatement& statement, const catalog::Catalog& catalog);
 [[nodiscard]] std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
     const sql::CreateTableStatement& statement);
 [[nodiscard]] std::expected<BoundInsertStatement, BindError> bind_insert_statement(
