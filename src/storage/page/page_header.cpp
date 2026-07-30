@@ -10,7 +10,6 @@ inline constexpr std::size_t version_offset = 4;
 inline constexpr std::size_t type_offset = 6;
 inline constexpr std::size_t page_id_offset = 8;
 inline constexpr std::size_t lsn_offset = 16;
-inline constexpr std::size_t checksum_offset = 24;
 inline constexpr std::size_t reserved_offset = 28;
 
 bool is_known_page_type(PageType type) noexcept {
@@ -47,7 +46,7 @@ std::expected<void, PageHeaderError> encode_page_header(
                                    static_cast<std::uint16_t>(header.type)) &&
                          write_u64(destination, page_id_offset, header.page_id.value) &&
                          write_u64(destination, lsn_offset, header.log_sequence_number) &&
-                         write_u32(destination, checksum_offset, header.checksum) &&
+                         write_u32(destination, page_checksum_offset, header.checksum) &&
                          write_u32(destination, reserved_offset, 0);
     if (!encoded) {
         return std::unexpected(PageHeaderError::page_too_small);
@@ -88,7 +87,7 @@ std::expected<PageHeader, PageHeaderError> decode_page_header(
         type,
         page_id,
         *read_u64(source, lsn_offset),
-        *read_u32(source, checksum_offset),
+        *read_u32(source, page_checksum_offset),
     };
 }
 

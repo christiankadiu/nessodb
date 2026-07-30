@@ -12,6 +12,7 @@ namespace minidb::storage {
 inline constexpr std::uint32_t page_magic = 0x5042444d;
 inline constexpr std::uint16_t page_format_version = 1;
 inline constexpr std::size_t page_header_size = 32;
+inline constexpr std::size_t page_checksum_offset = 24;
 
 enum class PageType : std::uint16_t {
     database_header = 1,
