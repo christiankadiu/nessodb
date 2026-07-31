@@ -124,4 +124,23 @@ StorageManager::create_table(catalog::TableSchema schema) {
     return metadata;
 }
 
+std::expected<RecordId, StorageManagerError> StorageManager::insert(
+    common::TableId table_id, const Row& row) {
+    const auto table = state_->table_heaps.find(table_id.value);
+    if (!table_id.is_valid() || table == state_->table_heaps.end()) {
+        return std::unexpected(
+            StorageManagerError{StorageManagerErrorCode::table_not_found});
+    }
+
+    auto record_id = table->second.insert(row);
+    if (!record_id) {
+        return std::unexpected(StorageManagerError{record_id.error()});
+    }
+    auto flushed = state_->buffer_pool.flush();
+    if (!flushed) {
+        return std::unexpected(StorageManagerError{flushed.error()});
+    }
+    return *record_id;
+}
+
 }  // namespace minidb::storage

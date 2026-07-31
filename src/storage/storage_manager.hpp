@@ -1,5 +1,8 @@
 #pragma once
 
+#include "common/table_id.hpp"
+#include "storage/access/record_id.hpp"
+#include "storage/access/row.hpp"
 #include "storage/catalog/catalog_store.hpp"
 #include "storage/io/database_file.hpp"
 
@@ -16,11 +19,12 @@ inline constexpr std::size_t default_buffer_pool_capacity = 64;
 
 enum class StorageManagerErrorCode {
     invalid_buffer_pool_capacity,
+    table_not_found,
 };
 
 using StorageManagerError =
-    std::variant<DatabaseFileError, CatalogStoreError, TableHeapError,
-                 StorageManagerErrorCode>;
+    std::variant<DatabaseFileError, BufferPoolError, CatalogStoreError,
+                 TableHeapError, StorageManagerErrorCode>;
 
 class StorageManager {
 public:
@@ -42,6 +46,8 @@ public:
     [[nodiscard]] std::span<const StoredTableMetadata> tables() const noexcept;
     [[nodiscard]] std::expected<StoredTableMetadata, StorageManagerError>
     create_table(catalog::TableSchema schema);
+    [[nodiscard]] std::expected<RecordId, StorageManagerError> insert(
+        common::TableId table_id, const Row& row);
 
 private:
     struct State;
