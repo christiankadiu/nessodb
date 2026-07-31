@@ -101,4 +101,27 @@ std::span<const StoredTableMetadata> StorageManager::tables() const noexcept {
     return state_->tables;
 }
 
+std::expected<StoredTableMetadata, StorageManagerError>
+StorageManager::create_table(catalog::TableSchema schema) {
+    auto valid = state_->catalog_store->validate_table(schema);
+    if (!valid) {
+        return std::unexpected(StorageManagerError{valid.error()});
+    }
+
+    auto table_heap = TableHeap::create(state_->buffer_pool, schema);
+    if (!table_heap) {
+        return std::unexpected(StorageManagerError{table_heap.error()});
+    }
+    const common::PageId first_page_id = table_heap->first_page_id();
+    auto stored = state_->catalog_store->add_table(schema, first_page_id);
+    if (!stored) {
+        return std::unexpected(StorageManagerError{stored.error()});
+    }
+
+    state_->table_heaps.emplace(schema.id.value, std::move(*table_heap));
+    StoredTableMetadata metadata{std::move(schema), first_page_id};
+    state_->tables.push_back(metadata);
+    return metadata;
+}
+
 }  // namespace minidb::storage

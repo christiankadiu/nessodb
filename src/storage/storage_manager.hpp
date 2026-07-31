@@ -40,6 +40,8 @@ public:
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] std::size_t buffer_pool_capacity() const noexcept;
     [[nodiscard]] std::span<const StoredTableMetadata> tables() const noexcept;
+    [[nodiscard]] std::expected<StoredTableMetadata, StorageManagerError>
+    create_table(catalog::TableSchema schema);
 
 private:
     struct State;
