@@ -7,11 +7,13 @@
 #include <cstdint>
 #include <expected>
 #include <limits>
+#include <optional>
 #include <span>
 
 namespace minidb::storage {
 
-inline constexpr std::size_t heap_page_header_size = 40;
+inline constexpr std::uint16_t heap_page_format_version = 1;
+inline constexpr std::size_t heap_page_header_size = 48;
 inline constexpr std::size_t slot_entry_size = 4;
 
 struct SlotId {
@@ -31,6 +33,8 @@ enum class SlottedPageError {
     invalid_page_size,
     invalid_page_header,
     not_a_heap_page,
+    unsupported_heap_page_version,
+    invalid_next_page_id,
     corrupted_slot_directory,
     empty_record,
     page_full,
@@ -45,6 +49,9 @@ public:
         std::span<std::byte> page) noexcept;
 
     [[nodiscard]] common::PageId page_id() const noexcept;
+    [[nodiscard]] std::optional<common::PageId> next_page_id() const noexcept;
+    [[nodiscard]] std::expected<void, SlottedPageError> set_next_page_id(
+        std::optional<common::PageId> page_id) noexcept;
     [[nodiscard]] std::uint16_t slot_count() const noexcept;
     [[nodiscard]] std::size_t free_space() const noexcept;
     [[nodiscard]] std::expected<SlotId, SlottedPageError> insert(

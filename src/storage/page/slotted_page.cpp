@@ -11,7 +11,9 @@ namespace {
 
 inline constexpr std::size_t slot_count_offset = page_header_size;
 inline constexpr std::size_t free_space_end_offset = page_header_size + 2;
-inline constexpr std::size_t heap_reserved_offset = page_header_size + 4;
+inline constexpr std::size_t heap_version_offset = page_header_size + 4;
+inline constexpr std::size_t heap_reserved_offset = page_header_size + 6;
+inline constexpr std::size_t next_page_id_offset = page_header_size + 8;
 
 static_assert(page_size <= std::numeric_limits<std::uint16_t>::max());
 
@@ -36,7 +38,9 @@ std::expected<SlottedPage, SlottedPageError> SlottedPage::initialize(
     const bool encoded = write_u16(page, slot_count_offset, 0) &&
                          write_u16(page, free_space_end_offset,
                                    static_cast<std::uint16_t>(page_size)) &&
-                         write_u32(page, heap_reserved_offset, 0);
+                         write_u16(page, heap_version_offset, heap_page_format_version) &&
+                         write_u16(page, heap_reserved_offset, 0) &&
+                         write_u64(page, next_page_id_offset, 0);
     if (!encoded) {
         return std::unexpected(SlottedPageError::invalid_page_size);
     }
@@ -56,11 +60,19 @@ std::expected<SlottedPage, SlottedPageError> SlottedPage::open(
     if (header->type != PageType::heap) {
         return std::unexpected(SlottedPageError::not_a_heap_page);
     }
+    if (*read_u16(page, heap_version_offset) != heap_page_format_version) {
+        return std::unexpected(SlottedPageError::unsupported_heap_page_version);
+    }
+
+    const auto next_page = *read_u64(page, next_page_id_offset);
+    if (next_page == common::PageId::invalid_value || next_page == header->page_id.value) {
+        return std::unexpected(SlottedPageError::invalid_next_page_id);
+    }
 
     const std::uint16_t slots = *read_u16(page, slot_count_offset);
     const std::uint16_t free_end = *read_u16(page, free_space_end_offset);
     const std::size_t directory_end = heap_page_header_size + slots * slot_entry_size;
-    if (*read_u32(page, heap_reserved_offset) != 0 || directory_end > free_end ||
+    if (*read_u16(page, heap_reserved_offset) != 0 || directory_end > free_end ||
         free_end > page_size) {
         return std::unexpected(SlottedPageError::corrupted_slot_directory);
     }
@@ -84,6 +96,25 @@ std::expected<SlottedPage, SlottedPageError> SlottedPage::open(
 
 common::PageId SlottedPage::page_id() const noexcept {
     return header_.page_id;
+}
+
+std::optional<common::PageId> SlottedPage::next_page_id() const noexcept {
+    const auto value = *read_u64(page_, next_page_id_offset);
+    if (value == 0) {
+        return std::nullopt;
+    }
+    return common::PageId{value};
+}
+
+std::expected<void, SlottedPageError> SlottedPage::set_next_page_id(
+    std::optional<common::PageId> page_id) noexcept {
+    if (page_id && (!page_id->is_valid() || page_id->value == 0 || *page_id == header_.page_id)) {
+        return std::unexpected(SlottedPageError::invalid_next_page_id);
+    }
+    if (!write_u64(page_, next_page_id_offset, page_id ? page_id->value : 0)) {
+        return std::unexpected(SlottedPageError::invalid_page_size);
+    }
+    return {};
 }
 
 std::uint16_t SlottedPage::slot_count() const noexcept {
