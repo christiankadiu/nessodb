@@ -115,4 +115,79 @@ std::expected<std::vector<std::byte>, RecordEncodeError> encode_record(
     return record;
 }
 
+std::expected<Row, RecordDecodeError> decode_record(
+    std::span<const std::byte> record, const catalog::TableSchema& schema) {
+    if (record.size() < record_header_size) {
+        return std::unexpected(RecordDecodeError::record_too_small);
+    }
+    if (*read_u16(record, 2) != record_format_version) {
+        return std::unexpected(RecordDecodeError::unsupported_version);
+    }
+    if (schema.columns.size() > std::numeric_limits<std::uint16_t>::max()) {
+        return std::unexpected(RecordDecodeError::schema_too_wide);
+    }
+
+    const auto column_count = *read_u16(record, 0);
+    if (column_count != schema.columns.size()) {
+        return std::unexpected(RecordDecodeError::column_count_mismatch);
+    }
+    const auto bitmap_size = null_bitmap_size(column_count);
+    const auto metadata_size = record_header_size + bitmap_size;
+    const auto stored_payload_size = *read_u32(record, 4);
+    if (stored_payload_size > std::numeric_limits<std::size_t>::max() - metadata_size ||
+        metadata_size + stored_payload_size != record.size()) {
+        return std::unexpected(RecordDecodeError::size_mismatch);
+    }
+
+    constexpr std::size_t bits_per_byte = 8;
+    const auto used_bits = column_count % bits_per_byte;
+    if (used_bits != 0) {
+        const auto used_mask = static_cast<std::uint8_t>((1U << used_bits) - 1U);
+        const auto final_bitmap_byte =
+            std::to_integer<std::uint8_t>(record[record_header_size + bitmap_size - 1]);
+        if ((final_bitmap_byte & static_cast<std::uint8_t>(~used_mask)) != 0) {
+            return std::unexpected(RecordDecodeError::reserved_null_bits_nonzero);
+        }
+    }
+
+    Row row;
+    row.values.reserve(column_count);
+    std::size_t payload_offset = metadata_size;
+    for (std::size_t index = 0; index < column_count; ++index) {
+        const auto bitmap_byte =
+            std::to_integer<std::uint8_t>(record[record_header_size + index / bits_per_byte]);
+        const auto null_mask = static_cast<std::uint8_t>(1U << (index % bits_per_byte));
+        if ((bitmap_byte & null_mask) != 0) {
+            row.values.emplace_back(types::NullValue{});
+            continue;
+        }
+
+        if (schema.columns[index].type == types::LogicalType::integer) {
+            if (sizeof(std::uint64_t) > record.size() - payload_offset) {
+                return std::unexpected(RecordDecodeError::truncated_value);
+            }
+            const auto integer = *read_u64(record, payload_offset);
+            row.values.emplace_back(std::bit_cast<std::int64_t>(integer));
+            payload_offset += sizeof(std::uint64_t);
+        } else {
+            if (sizeof(std::uint32_t) > record.size() - payload_offset) {
+                return std::unexpected(RecordDecodeError::truncated_value);
+            }
+            const auto text_size = *read_u32(record, payload_offset);
+            payload_offset += sizeof(std::uint32_t);
+            if (text_size > record.size() - payload_offset) {
+                return std::unexpected(RecordDecodeError::truncated_value);
+            }
+            const auto* text = reinterpret_cast<const char*>(record.data() + payload_offset);
+            row.values.emplace_back(std::string{text, text_size});
+            payload_offset += text_size;
+        }
+    }
+
+    if (payload_offset != record.size()) {
+        return std::unexpected(RecordDecodeError::payload_size_mismatch);
+    }
+    return row;
+}
+
 }  // namespace minidb::storage

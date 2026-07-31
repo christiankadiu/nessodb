@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <span>
 #include <vector>
 
 namespace minidb::storage {
@@ -21,7 +22,20 @@ enum class RecordEncodeError {
     record_too_large,
 };
 
+enum class RecordDecodeError {
+    record_too_small,
+    unsupported_version,
+    schema_too_wide,
+    column_count_mismatch,
+    size_mismatch,
+    reserved_null_bits_nonzero,
+    truncated_value,
+    payload_size_mismatch,
+};
+
 [[nodiscard]] std::expected<std::vector<std::byte>, RecordEncodeError> encode_record(
     const Row& row, const catalog::TableSchema& schema);
+[[nodiscard]] std::expected<Row, RecordDecodeError> decode_record(
+    std::span<const std::byte> record, const catalog::TableSchema& schema);
 
 }  // namespace minidb::storage
