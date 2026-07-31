@@ -132,6 +132,50 @@ std::expected<RecordId, TableHeapError> TableHeap::insert(const Row& row) {
     return RecordId{last_page_id_, *slot_id};
 }
 
+std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
+    std::vector<Row> rows;
+    std::unordered_set<std::uint64_t> visited_pages;
+    common::PageId current_page_id = first_page_id_;
+
+    while (true) {
+        if (!visited_pages.insert(current_page_id.value).second) {
+            return std::unexpected(
+                TableHeapError{TableHeapErrorCode::page_chain_cycle});
+        }
+
+        std::optional<common::PageId> next_page_id;
+        {
+            auto page = buffer_pool_.fetch_heap_page(current_page_id);
+            if (!page) {
+                return std::unexpected(TableHeapError{page.error()});
+            }
+            PageBuffer page_copy = **page;
+            auto slotted_page = SlottedPage::open(page_copy);
+            if (!slotted_page) {
+                return std::unexpected(TableHeapError{slotted_page.error()});
+            }
+
+            for (std::uint16_t slot = 0; slot < slotted_page->slot_count(); ++slot) {
+                auto record = slotted_page->read(SlotId{slot});
+                if (!record) {
+                    return std::unexpected(TableHeapError{record.error()});
+                }
+                auto row = decode_record(*record, schema_);
+                if (!row) {
+                    return std::unexpected(TableHeapError{row.error()});
+                }
+                rows.push_back(std::move(*row));
+            }
+            next_page_id = slotted_page->next_page_id();
+        }
+
+        if (!next_page_id) {
+            return rows;
+        }
+        current_page_id = *next_page_id;
+    }
+}
+
 TableHeap::TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
                      common::PageId first_page_id, common::PageId last_page_id)
     : buffer_pool_(buffer_pool),

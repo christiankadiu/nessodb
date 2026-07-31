@@ -10,6 +10,7 @@
 
 #include <expected>
 #include <variant>
+#include <vector>
 
 namespace minidb::storage {
 
@@ -21,7 +22,8 @@ enum class TableHeapErrorCode {
 };
 
 using TableHeapError =
-    std::variant<BufferPoolError, RecordEncodeError, SlottedPageError, TableHeapErrorCode>;
+    std::variant<BufferPoolError, RecordEncodeError, RecordDecodeError,
+                 SlottedPageError, TableHeapErrorCode>;
 
 class TableHeap {
 public:
@@ -33,6 +35,7 @@ public:
 
     [[nodiscard]] common::PageId first_page_id() const noexcept;
     [[nodiscard]] std::expected<RecordId, TableHeapError> insert(const Row& row);
+    [[nodiscard]] std::expected<std::vector<Row>, TableHeapError> scan() const;
 
 private:
     TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
