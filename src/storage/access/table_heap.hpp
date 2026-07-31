@@ -16,6 +16,8 @@ namespace minidb::storage {
 enum class TableHeapErrorCode {
     record_too_large,
     tail_page_already_linked,
+    invalid_first_page_id,
+    page_chain_cycle,
 };
 
 using TableHeapError =
@@ -25,13 +27,16 @@ class TableHeap {
 public:
     [[nodiscard]] static std::expected<TableHeap, TableHeapError> create(
         BufferPool& buffer_pool, catalog::TableSchema schema);
+    [[nodiscard]] static std::expected<TableHeap, TableHeapError> open(
+        BufferPool& buffer_pool, catalog::TableSchema schema,
+        common::PageId first_page_id);
 
     [[nodiscard]] common::PageId first_page_id() const noexcept;
     [[nodiscard]] std::expected<RecordId, TableHeapError> insert(const Row& row);
 
 private:
     TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
-              common::PageId first_page_id);
+              common::PageId first_page_id, common::PageId last_page_id);
 
     BufferPool& buffer_pool_;
     catalog::TableSchema schema_;

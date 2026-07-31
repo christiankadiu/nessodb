@@ -2,6 +2,8 @@
 
 #include "storage/page/page.hpp"
 
+#include <optional>
+#include <unordered_set>
 #include <utility>
 
 namespace minidb::storage {
@@ -12,7 +14,45 @@ std::expected<TableHeap, TableHeapError> TableHeap::create(
     if (!allocated) {
         return std::unexpected(TableHeapError{allocated.error()});
     }
-    return TableHeap{buffer_pool, std::move(schema), allocated->page_id};
+    return TableHeap{buffer_pool, std::move(schema), allocated->page_id,
+                     allocated->page_id};
+}
+
+std::expected<TableHeap, TableHeapError> TableHeap::open(
+    BufferPool& buffer_pool, catalog::TableSchema schema,
+    common::PageId first_page_id) {
+    if (!first_page_id.is_valid() || first_page_id.value == 0) {
+        return std::unexpected(
+            TableHeapError{TableHeapErrorCode::invalid_first_page_id});
+    }
+
+    std::unordered_set<std::uint64_t> visited_pages;
+    common::PageId current_page_id = first_page_id;
+    while (true) {
+        if (!visited_pages.insert(current_page_id.value).second) {
+            return std::unexpected(
+                TableHeapError{TableHeapErrorCode::page_chain_cycle});
+        }
+
+        std::optional<common::PageId> next_page_id;
+        {
+            auto page = buffer_pool.fetch_heap_page(current_page_id);
+            if (!page) {
+                return std::unexpected(TableHeapError{page.error()});
+            }
+            PageBuffer page_copy = **page;
+            auto slotted_page = SlottedPage::open(page_copy);
+            if (!slotted_page) {
+                return std::unexpected(TableHeapError{slotted_page.error()});
+            }
+            next_page_id = slotted_page->next_page_id();
+        }
+        if (!next_page_id) {
+            return TableHeap{buffer_pool, std::move(schema), first_page_id,
+                             current_page_id};
+        }
+        current_page_id = *next_page_id;
+    }
 }
 
 common::PageId TableHeap::first_page_id() const noexcept {
@@ -93,10 +133,10 @@ std::expected<RecordId, TableHeapError> TableHeap::insert(const Row& row) {
 }
 
 TableHeap::TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
-                     common::PageId first_page_id)
+                     common::PageId first_page_id, common::PageId last_page_id)
     : buffer_pool_(buffer_pool),
       schema_(std::move(schema)),
       first_page_id_(first_page_id),
-      last_page_id_(first_page_id) {}
+      last_page_id_(last_page_id) {}
 
 }  // namespace minidb::storage
