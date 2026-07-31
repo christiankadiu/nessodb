@@ -1,29 +1,10 @@
 #include "storage/catalog/catalog_store.hpp"
 
-#include "catalog/schema.hpp"
-#include "types/logical_type.hpp"
+#include "storage/catalog/catalog_record.hpp"
 
 #include <utility>
 
 namespace minidb::storage {
-namespace {
-
-catalog::TableSchema catalog_schema() {
-    return catalog::TableSchema{
-        "minidb_catalog",
-        {
-            {"format_version", types::LogicalType::integer},
-            {"entry_kind", types::LogicalType::integer},
-            {"table_id", types::LogicalType::integer},
-            {"ordinal", types::LogicalType::integer},
-            {"name", types::LogicalType::text},
-            {"logical_type", types::LogicalType::integer},
-            {"first_page_id", types::LogicalType::integer},
-        },
-    };
-}
-
-}  // namespace
 
 std::expected<CatalogStore, CatalogStoreError> CatalogStore::create(
     DatabaseFile& database_file, BufferPool& buffer_pool) {
@@ -32,7 +13,7 @@ std::expected<CatalogStore, CatalogStoreError> CatalogStore::create(
             CatalogStoreError{CatalogStoreErrorCode::already_initialized});
     }
 
-    auto table_heap = TableHeap::create(buffer_pool, catalog_schema());
+    auto table_heap = TableHeap::create(buffer_pool, catalog_record_schema());
     if (!table_heap) {
         return std::unexpected(CatalogStoreError{table_heap.error()});
     }
@@ -52,7 +33,8 @@ std::expected<CatalogStore, CatalogStoreError> CatalogStore::open(
     }
 
     auto table_heap = TableHeap::open(
-        buffer_pool, catalog_schema(), *database_file.header().catalog_root);
+        buffer_pool, catalog_record_schema(),
+        *database_file.header().catalog_root);
     if (!table_heap) {
         return std::unexpected(CatalogStoreError{table_heap.error()});
     }
