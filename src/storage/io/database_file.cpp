@@ -89,6 +89,31 @@ const DatabaseHeader& DatabaseFile::header() const noexcept {
     return header_;
 }
 
+std::expected<void, DatabaseFileError> DatabaseFile::initialize_catalog_root(
+    common::PageId page_id) {
+    if (header_.catalog_root) {
+        return std::unexpected(DatabaseFileError{
+            DatabaseFileStructureError::catalog_root_already_initialized});
+    }
+
+    DatabaseHeader updated_header = header_;
+    updated_header.catalog_root = page_id;
+    auto header_page = make_header_page(updated_header);
+    if (!header_page) {
+        return std::unexpected(header_page.error());
+    }
+    auto written = page_file_.write_page(common::PageId{0}, *header_page);
+    if (!written) {
+        return std::unexpected(DatabaseFileError{written.error()});
+    }
+    auto flushed = page_file_.flush();
+    if (!flushed) {
+        return std::unexpected(DatabaseFileError{flushed.error()});
+    }
+    header_ = updated_header;
+    return {};
+}
+
 std::expected<common::PageId, DatabaseFileError> DatabaseFile::allocate_heap_page() {
     if (header_.page_count == common::PageId::invalid_value) {
         return std::unexpected(

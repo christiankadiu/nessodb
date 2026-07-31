@@ -16,6 +16,7 @@ enum class DatabaseFileStructureError {
     page_id_exhausted,
     invalid_heap_page_id,
     page_id_mismatch,
+    catalog_root_already_initialized,
 };
 
 using DatabaseFileError = std::variant<PageFileError, PageChecksumError,
@@ -37,6 +38,8 @@ public:
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] const DatabaseHeader& header() const noexcept;
+    [[nodiscard]] std::expected<void, DatabaseFileError> initialize_catalog_root(
+        common::PageId page_id);
     [[nodiscard]] std::expected<common::PageId, DatabaseFileError> allocate_heap_page();
     [[nodiscard]] std::expected<PageBuffer, DatabaseFileError> read_heap_page(
         common::PageId page_id);
