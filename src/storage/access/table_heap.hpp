@@ -13,8 +13,13 @@
 
 namespace minidb::storage {
 
+enum class TableHeapErrorCode {
+    record_too_large,
+    tail_page_already_linked,
+};
+
 using TableHeapError =
-    std::variant<BufferPoolError, RecordEncodeError, SlottedPageError>;
+    std::variant<BufferPoolError, RecordEncodeError, SlottedPageError, TableHeapErrorCode>;
 
 class TableHeap {
 public:
@@ -31,6 +36,7 @@ private:
     BufferPool& buffer_pool_;
     catalog::TableSchema schema_;
     common::PageId first_page_id_;
+    common::PageId last_page_id_;
 };
 
 }  // namespace minidb::storage
