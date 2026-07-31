@@ -18,6 +18,7 @@ struct CatalogTableRecord {
     common::TableId table_id;
     std::string name;
     common::PageId first_page_id;
+    std::uint64_t column_count;
 };
 
 struct CatalogColumnRecord {
@@ -35,6 +36,7 @@ enum class CatalogRecordError {
     unknown_entry_kind,
     invalid_table_id,
     invalid_ordinal,
+    invalid_column_count,
     empty_name,
     invalid_logical_type,
     invalid_first_page_id,

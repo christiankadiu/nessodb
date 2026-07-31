@@ -3,6 +3,7 @@
 #include "common/page_id.hpp"
 #include "storage/access/table_heap.hpp"
 #include "storage/buffer/buffer_pool.hpp"
+#include "storage/catalog/catalog_record.hpp"
 #include "storage/io/database_file.hpp"
 
 #include <expected>
@@ -13,10 +14,14 @@ namespace minidb::storage {
 enum class CatalogStoreErrorCode {
     already_initialized,
     not_initialized,
+    duplicate_table_id,
+    duplicate_table_name,
+    duplicate_column_name,
 };
 
 using CatalogStoreError =
-    std::variant<DatabaseFileError, TableHeapError, CatalogStoreErrorCode>;
+    std::variant<DatabaseFileError, BufferPoolError, TableHeapError,
+                 CatalogRecordError, CatalogStoreErrorCode>;
 
 class CatalogStore {
 public:
@@ -32,10 +37,13 @@ public:
     ~CatalogStore() = default;
 
     [[nodiscard]] common::PageId first_page_id() const noexcept;
+    [[nodiscard]] std::expected<void, CatalogStoreError> add_table(
+        const catalog::TableSchema& schema, common::PageId first_page_id);
 
 private:
-    explicit CatalogStore(TableHeap table_heap);
+    CatalogStore(BufferPool& buffer_pool, TableHeap table_heap);
 
+    BufferPool& buffer_pool_;
     TableHeap table_heap_;
 };
 

@@ -14,7 +14,7 @@ inline constexpr std::int64_t table_entry_kind = 1;
 inline constexpr std::int64_t column_entry_kind = 2;
 inline constexpr std::int64_t integer_type_code = 1;
 inline constexpr std::int64_t text_type_code = 2;
-inline constexpr std::size_t catalog_field_count = 7;
+inline constexpr std::size_t catalog_field_count = 8;
 
 std::expected<std::int64_t, CatalogRecordError> encode_identifier(
     std::uint64_t value, CatalogRecordError invalid_error) noexcept {
@@ -76,6 +76,7 @@ const catalog::TableSchema& catalog_record_schema() {
             {"name", types::LogicalType::text},
             {"logical_type", types::LogicalType::integer},
             {"first_page_id", types::LogicalType::integer},
+            {"column_count", types::LogicalType::integer},
         },
     };
     return schema;
@@ -98,9 +99,14 @@ std::expected<Row, CatalogRecordError> encode_catalog_record(
         if (table->name.empty()) {
             return std::unexpected(CatalogRecordError::empty_name);
         }
+        if (table->column_count > static_cast<std::uint64_t>(
+                                      std::numeric_limits<std::int64_t>::max())) {
+            return std::unexpected(CatalogRecordError::numeric_value_out_of_range);
+        }
         return Row{{catalog_record_format_version, table_entry_kind, *table_id,
                     types::NullValue{}, table->name, types::NullValue{},
-                    *first_page_id}};
+                    *first_page_id,
+                    static_cast<std::int64_t>(table->column_count)}};
     }
 
     const auto& column = std::get<CatalogColumnRecord>(record);
@@ -122,7 +128,7 @@ std::expected<Row, CatalogRecordError> encode_catalog_record(
     }
     return Row{{catalog_record_format_version, column_entry_kind, *table_id,
                 static_cast<std::int64_t>(column.ordinal), column.column.name,
-                *logical_type, types::NullValue{}}};
+                *logical_type, types::NullValue{}, types::NullValue{}}};
 }
 
 std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
@@ -151,21 +157,27 @@ std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
     const common::TableId decoded_table_id{static_cast<std::uint64_t>(*table_id)};
     if (*entry_kind == table_entry_kind) {
         const auto* first_page_id = integer_field(row, 6);
+        const auto* column_count = integer_field(row, 7);
         if (!null_field(row, 3) || !null_field(row, 5) ||
-            first_page_id == nullptr) {
+            first_page_id == nullptr || column_count == nullptr) {
             return std::unexpected(CatalogRecordError::field_type_mismatch);
         }
         if (*first_page_id <= 0) {
             return std::unexpected(CatalogRecordError::invalid_first_page_id);
         }
+        if (*column_count < 0) {
+            return std::unexpected(CatalogRecordError::invalid_column_count);
+        }
         return CatalogRecord{CatalogTableRecord{
             decoded_table_id, *name,
-            common::PageId{static_cast<std::uint64_t>(*first_page_id)}}};
+            common::PageId{static_cast<std::uint64_t>(*first_page_id)},
+            static_cast<std::uint64_t>(*column_count)}};
     }
     if (*entry_kind == column_entry_kind) {
         const auto* ordinal = integer_field(row, 3);
         const auto* logical_type = integer_field(row, 5);
-        if (ordinal == nullptr || logical_type == nullptr || !null_field(row, 6)) {
+        if (ordinal == nullptr || logical_type == nullptr || !null_field(row, 6) ||
+            !null_field(row, 7)) {
             return std::unexpected(CatalogRecordError::field_type_mismatch);
         }
         if (*ordinal < 0) {
