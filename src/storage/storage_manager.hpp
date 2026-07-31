@@ -7,6 +7,7 @@
 #include <expected>
 #include <filesystem>
 #include <memory>
+#include <span>
 #include <variant>
 
 namespace minidb::storage {
@@ -18,7 +19,8 @@ enum class StorageManagerErrorCode {
 };
 
 using StorageManagerError =
-    std::variant<DatabaseFileError, CatalogStoreError, StorageManagerErrorCode>;
+    std::variant<DatabaseFileError, CatalogStoreError, TableHeapError,
+                 StorageManagerErrorCode>;
 
 class StorageManager {
 public:
@@ -37,6 +39,7 @@ public:
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] std::size_t buffer_pool_capacity() const noexcept;
+    [[nodiscard]] std::span<const StoredTableMetadata> tables() const noexcept;
 
 private:
     struct State;

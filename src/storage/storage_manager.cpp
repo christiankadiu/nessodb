@@ -2,8 +2,11 @@
 
 #include "storage/buffer/buffer_pool.hpp"
 
+#include <cstdint>
 #include <optional>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace minidb::storage {
 
@@ -15,6 +18,8 @@ struct StorageManager::State {
     DatabaseFile database_file;
     BufferPool buffer_pool;
     std::optional<CatalogStore> catalog_store;
+    std::vector<StoredTableMetadata> tables;
+    std::unordered_map<std::uint64_t, TableHeap> table_heaps;
 };
 
 std::expected<StorageManager, StorageManagerError> StorageManager::create(
@@ -57,6 +62,20 @@ std::expected<StorageManager, StorageManagerError> StorageManager::open(
     if (!catalog_store) {
         return std::unexpected(StorageManagerError{catalog_store.error()});
     }
+    auto tables = catalog_store->load_tables();
+    if (!tables) {
+        return std::unexpected(StorageManagerError{tables.error()});
+    }
+    for (const auto& table : *tables) {
+        auto table_heap = TableHeap::open(
+            state->buffer_pool, table.schema, table.first_page_id);
+        if (!table_heap) {
+            return std::unexpected(StorageManagerError{table_heap.error()});
+        }
+        state->table_heaps.emplace(table.schema.id.value,
+                                   std::move(*table_heap));
+    }
+    state->tables = std::move(*tables);
     state->catalog_store.emplace(std::move(*catalog_store));
     return StorageManager{std::move(state)};
 }
@@ -76,6 +95,10 @@ const std::filesystem::path& StorageManager::path() const noexcept {
 
 std::size_t StorageManager::buffer_pool_capacity() const noexcept {
     return state_->buffer_pool.capacity();
+}
+
+std::span<const StoredTableMetadata> StorageManager::tables() const noexcept {
+    return state_->tables;
 }
 
 }  // namespace minidb::storage
