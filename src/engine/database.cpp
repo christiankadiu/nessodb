@@ -9,6 +9,35 @@
 
 namespace minidb::engine {
 
+Database::Database(catalog::Catalog catalog, storage::StorageManager storage)
+    : catalog_(std::move(catalog)), storage_(std::move(storage)) {}
+
+std::expected<Database, DatabaseOpenError> Database::create(
+    const std::filesystem::path& path) {
+    auto storage = storage::StorageManager::create(path);
+    if (!storage) {
+        return std::unexpected(DatabaseOpenError{std::move(storage.error())});
+    }
+    return Database{catalog::Catalog{}, std::move(*storage)};
+}
+
+std::expected<Database, DatabaseOpenError> Database::open(
+    const std::filesystem::path& path) {
+    auto storage = storage::StorageManager::open(path);
+    if (!storage) {
+        return std::unexpected(DatabaseOpenError{std::move(storage.error())});
+    }
+
+    catalog::Catalog catalog;
+    for (const auto& table : storage->tables()) {
+        auto restored = catalog.restore_table(table.schema);
+        if (!restored) {
+            return std::unexpected(DatabaseOpenError{restored.error()});
+        }
+    }
+    return Database{std::move(catalog), std::move(*storage)};
+}
+
 std::expected<QueryResult, QueryError> Database::execute(std::string_view source) {
     sql::Parser parser{source};
     auto parsed = parser.parse_statement();
@@ -27,15 +56,27 @@ std::expected<QueryResult, QueryError> Database::execute(
     }
 
     if (bound->table_id.is_valid()) {
-        auto stored_rows = heap_.scan(bound->table_id);
-        if (!stored_rows) {
-            throw std::logic_error{"catalog and heap table state diverged"};
+        std::vector<storage::Row> stored_rows;
+        if (const auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
+            auto scanned = heap->scan(bound->table_id);
+            if (!scanned) {
+                throw std::logic_error{"catalog and heap table state diverged"};
+            }
+            stored_rows.assign(scanned->begin(), scanned->end());
+        } else {
+            auto scanned = std::get<storage::StorageManager>(storage_).scan(
+                bound->table_id);
+            if (!scanned) {
+                return std::unexpected(QueryError{StorageError{
+                    std::move(scanned.error())}});
+            }
+            stored_rows = std::move(*scanned);
         }
 
         QueryResult result;
-        result.rows.reserve(stored_rows->size());
-        for (const auto& stored_row : *stored_rows) {
-            result.rows.push_back(ResultRow{stored_row.values});
+        result.rows.reserve(stored_rows.size());
+        for (auto& stored_row : stored_rows) {
+            result.rows.push_back(ResultRow{std::move(stored_row.values)});
         }
         return result;
     }
@@ -64,16 +105,27 @@ std::expected<QueryResult, QueryError> Database::execute(
         schema.columns.push_back(catalog::ColumnSchema{std::move(column.name), column.type});
     }
 
-    auto created = catalog_.create_table(std::move(schema));
+    auto updated_catalog = catalog_;
+    auto created = updated_catalog.create_table(std::move(schema));
     if (!created) {
         return std::unexpected(QueryError{ExecutionError{
             ExecutionErrorCode::table_already_exists, statement.table_location}});
     }
 
-    auto heap_created = heap_.create_table((*created)->id);
-    if (!heap_created) {
-        throw std::logic_error{"catalog and heap table state diverged"};
+    if (auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
+        auto heap_created = heap->create_table((*created)->id);
+        if (!heap_created) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
+    } else {
+        auto stored = std::get<storage::StorageManager>(storage_).create_table(
+            **created);
+        if (!stored) {
+            return std::unexpected(QueryError{StorageError{
+                std::move(stored.error())}});
+        }
     }
+    catalog_ = std::move(updated_catalog);
     return QueryResult{};
 }
 
@@ -84,9 +136,19 @@ std::expected<QueryResult, QueryError> Database::execute(
         return std::unexpected(QueryError{bound.error()});
     }
 
-    auto inserted = heap_.insert(bound->table_id, storage::Row{std::move(bound->values)});
-    if (!inserted) {
-        throw std::logic_error{"catalog and heap table state diverged"};
+    storage::Row row{std::move(bound->values)};
+    if (auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
+        auto inserted = heap->insert(bound->table_id, std::move(row));
+        if (!inserted) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
+    } else {
+        auto inserted = std::get<storage::StorageManager>(storage_).insert(
+            bound->table_id, row);
+        if (!inserted) {
+            return std::unexpected(QueryError{StorageError{
+                std::move(inserted.error())}});
+        }
     }
     return QueryResult{{}, 1};
 }
