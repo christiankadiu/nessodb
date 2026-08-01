@@ -2,6 +2,7 @@
 
 #include "binder/binder.hpp"
 #include "sql/parser.hpp"
+#include "storage/storage_manager.hpp"
 #include "types/value.hpp"
 
 #include <cstddef>
@@ -30,7 +31,12 @@ struct ExecutionError {
     sql::SourceLocation location;
 };
 
-using QueryError = std::variant<sql::ParseError, binder::BindError, ExecutionError>;
+struct StorageError {
+    storage::StorageManagerError cause;
+};
+
+using QueryError =
+    std::variant<sql::ParseError, binder::BindError, ExecutionError, StorageError>;
 
 [[nodiscard]] std::expected<QueryResult, QueryError> execute_query(std::string_view source);
 

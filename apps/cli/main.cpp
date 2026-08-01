@@ -11,8 +11,12 @@ namespace {
 void print_error(const minidb::engine::QueryError& error) {
     std::visit(
         [](const auto& detail) {
-            std::cerr << "Query error at " << detail.location.line << ':' << detail.location.column
-                      << '\n';
+            if constexpr (requires { detail.location; }) {
+                std::cerr << "Query error at " << detail.location.line << ':'
+                          << detail.location.column << '\n';
+            } else {
+                std::cerr << "Storage error\n";
+            }
         },
         error);
 }
