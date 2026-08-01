@@ -75,16 +75,10 @@ common::PageId CatalogStore::first_page_id() const noexcept {
     return table_heap_.first_page_id();
 }
 
-std::expected<void, CatalogStoreError> CatalogStore::add_table(
-    const catalog::TableSchema& schema, common::PageId first_page_id) {
-    if (!valid_table_root(database_file_, first_page_id)) {
-        return std::unexpected(
-            CatalogStoreError{CatalogStoreErrorCode::invalid_table_root});
-    }
-
-    auto table_row = encode_catalog_record(
-        CatalogTableRecord{schema.id, schema.name, first_page_id,
-                           schema.columns.size()});
+std::expected<void, CatalogStoreError> CatalogStore::validate_table(
+    const catalog::TableSchema& schema) const {
+    auto table_row = encode_catalog_record(CatalogTableRecord{
+        schema.id, schema.name, common::PageId{1}, schema.columns.size()});
     if (!table_row) {
         return std::unexpected(CatalogStoreError{table_row.error()});
     }
@@ -93,8 +87,6 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
         return std::unexpected(valid_table_row.error());
     }
 
-    std::vector<Row> column_rows;
-    column_rows.reserve(schema.columns.size());
     for (std::size_t ordinal = 0; ordinal < schema.columns.size(); ++ordinal) {
         for (std::size_t existing = 0; existing < ordinal; ++existing) {
             if (common::identifiers_equal(schema.columns[ordinal].name,
@@ -103,7 +95,6 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
                     CatalogStoreErrorCode::duplicate_column_name});
             }
         }
-
         auto column_row = encode_catalog_record(CatalogColumnRecord{
             schema.id, static_cast<std::uint64_t>(ordinal), schema.columns[ordinal]});
         if (!column_row) {
@@ -113,7 +104,6 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
         if (!valid_column_row) {
             return std::unexpected(valid_column_row.error());
         }
-        column_rows.push_back(std::move(*column_row));
     }
 
     auto existing_rows = table_heap_.scan();
@@ -137,6 +127,37 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
             return std::unexpected(
                 CatalogStoreError{CatalogStoreErrorCode::duplicate_table_name});
         }
+    }
+    return {};
+}
+
+std::expected<void, CatalogStoreError> CatalogStore::add_table(
+    const catalog::TableSchema& schema, common::PageId first_page_id) {
+    if (!valid_table_root(database_file_, first_page_id)) {
+        return std::unexpected(
+            CatalogStoreError{CatalogStoreErrorCode::invalid_table_root});
+    }
+    auto valid_table = validate_table(schema);
+    if (!valid_table) {
+        return std::unexpected(valid_table.error());
+    }
+
+    auto table_row = encode_catalog_record(
+        CatalogTableRecord{schema.id, schema.name, first_page_id,
+                           schema.columns.size()});
+    if (!table_row) {
+        return std::unexpected(CatalogStoreError{table_row.error()});
+    }
+
+    std::vector<Row> column_rows;
+    column_rows.reserve(schema.columns.size());
+    for (std::size_t ordinal = 0; ordinal < schema.columns.size(); ++ordinal) {
+        auto column_row = encode_catalog_record(CatalogColumnRecord{
+            schema.id, static_cast<std::uint64_t>(ordinal), schema.columns[ordinal]});
+        if (!column_row) {
+            return std::unexpected(CatalogStoreError{column_row.error()});
+        }
+        column_rows.push_back(std::move(*column_row));
     }
 
     for (const auto& row : column_rows) {

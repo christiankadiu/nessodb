@@ -46,6 +46,8 @@ public:
     ~CatalogStore() = default;
 
     [[nodiscard]] common::PageId first_page_id() const noexcept;
+    [[nodiscard]] std::expected<void, CatalogStoreError> validate_table(
+        const catalog::TableSchema& schema) const;
     [[nodiscard]] std::expected<void, CatalogStoreError> add_table(
         const catalog::TableSchema& schema, common::PageId first_page_id);
     [[nodiscard]] std::expected<std::vector<StoredTableMetadata>, CatalogStoreError>

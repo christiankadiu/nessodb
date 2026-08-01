@@ -6,7 +6,7 @@ project(
     LANGUAGES CXX
 )
 
-include(CTest)
+option(MINIDB_BUILD_TESTS "Build the MiniDB test suite" OFF)
 
 add_library(minidb
     src/binder/binder.cpp
@@ -27,6 +27,7 @@ add_library(minidb
     src/storage/page/page_header.cpp
     src/storage/page/slotted_page.cpp
     src/storage/record/record_codec.cpp
+    src/storage/storage_manager.cpp
 )
 add_library(MiniDB::minidb ALIAS minidb)
 
@@ -65,6 +66,7 @@ else()
     )
 endif()
 
-if(BUILD_TESTING)
+if(MINIDB_BUILD_TESTS)
+    include(CTest)
     add_subdirectory(tests)
 endif()
