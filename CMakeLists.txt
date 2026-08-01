@@ -6,7 +6,7 @@ project(
     LANGUAGES CXX
 )
 
-include(CTest)
+option(MINIDB_BUILD_TESTS "Build the MiniDB test suite" OFF)
 
 add_library(minidb
     src/binder/binder.cpp
@@ -66,6 +66,7 @@ else()
     )
 endif()
 
-if(BUILD_TESTING)
+if(MINIDB_BUILD_TESTS)
+    include(CTest)
     add_subdirectory(tests)
 endif()

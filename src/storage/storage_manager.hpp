@@ -12,6 +12,7 @@
 #include <memory>
 #include <span>
 #include <variant>
+#include <vector>
 
 namespace minidb::storage {
 
@@ -48,6 +49,8 @@ public:
     create_table(catalog::TableSchema schema);
     [[nodiscard]] std::expected<RecordId, StorageManagerError> insert(
         common::TableId table_id, const Row& row);
+    [[nodiscard]] std::expected<std::vector<Row>, StorageManagerError> scan(
+        common::TableId table_id) const;
 
 private:
     struct State;
