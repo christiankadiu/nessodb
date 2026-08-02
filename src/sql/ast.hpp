@@ -21,13 +21,21 @@ struct LiteralExpression {
     SourceLocation location;
 };
 
+struct ColumnReferenceExpression {
+    std::string_view name;
+    SourceLocation location;
+};
+
+using SelectExpression =
+    std::variant<LiteralExpression, ColumnReferenceExpression>;
+
 struct TableReference {
     std::string_view name;
     SourceLocation location;
 };
 
 struct SelectStatement {
-    std::vector<LiteralExpression> expressions;
+    std::vector<SelectExpression> expressions;
     bool select_all_columns{};
     std::optional<TableReference> from;
 };

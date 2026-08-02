@@ -5,7 +5,9 @@
 #include "types/logical_type.hpp"
 #include "types/value.hpp"
 
+#include <cstddef>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace minidb::binder {
@@ -15,8 +17,16 @@ struct BoundLiteralExpression {
     sql::SourceLocation location;
 };
 
+struct BoundColumnReferenceExpression {
+    std::size_t column_index;
+    sql::SourceLocation location;
+};
+
+using BoundSelectExpression =
+    std::variant<BoundLiteralExpression, BoundColumnReferenceExpression>;
+
 struct BoundSelectStatement {
-    std::vector<BoundLiteralExpression> expressions;
+    std::vector<BoundSelectExpression> expressions;
     common::TableId table_id;
 };
 

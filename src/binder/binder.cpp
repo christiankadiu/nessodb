@@ -86,27 +86,61 @@ bool value_matches_type(const types::Value& value, types::LogicalType type) noex
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
     const sql::SelectStatement& statement, const catalog::Catalog& catalog) {
-    if (statement.select_all_columns) {
-        if (!statement.from) {
-            return std::unexpected(BindError{BindErrorCode::table_not_found, {}});
-        }
-        const catalog::TableSchema* table = catalog.find_table(statement.from->name);
+    const catalog::TableSchema* table = nullptr;
+    if (statement.from) {
+        table = catalog.find_table(statement.from->name);
         if (table == nullptr) {
             return std::unexpected(
-                BindError{BindErrorCode::table_not_found, statement.from->location});
+                BindError{BindErrorCode::table_not_found,
+                          statement.from->location});
+        }
+    }
+
+    if (statement.select_all_columns) {
+        if (table == nullptr) {
+            return std::unexpected(BindError{BindErrorCode::table_not_found, {}});
         }
         return BoundSelectStatement{{}, table->id};
     }
 
     BoundSelectStatement bound_statement;
+    if (table != nullptr) {
+        bound_statement.table_id = table->id;
+    }
     bound_statement.expressions.reserve(statement.expressions.size());
 
     for (const auto& expression : statement.expressions) {
-        auto bound_expression = bind_literal(expression);
-        if (!bound_expression) {
-            return std::unexpected(bound_expression.error());
+        if (const auto* literal =
+                std::get_if<sql::LiteralExpression>(&expression)) {
+            auto bound_expression = bind_literal(*literal);
+            if (!bound_expression) {
+                return std::unexpected(bound_expression.error());
+            }
+            bound_statement.expressions.emplace_back(
+                std::move(*bound_expression));
+            continue;
         }
-        bound_statement.expressions.push_back(std::move(*bound_expression));
+
+        const auto& column =
+            std::get<sql::ColumnReferenceExpression>(expression);
+        if (table == nullptr) {
+            return std::unexpected(
+                BindError{BindErrorCode::column_requires_table,
+                          column.location});
+        }
+
+        std::size_t column_index = 0;
+        while (column_index < table->columns.size() &&
+               !common::identifiers_equal(table->columns[column_index].name,
+                                          column.name)) {
+            ++column_index;
+        }
+        if (column_index == table->columns.size()) {
+            return std::unexpected(
+                BindError{BindErrorCode::column_not_found, column.location});
+        }
+        bound_statement.expressions.emplace_back(
+            BoundColumnReferenceExpression{column_index, column.location});
     }
 
     return bound_statement;

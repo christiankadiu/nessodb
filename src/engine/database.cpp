@@ -76,7 +76,31 @@ std::expected<QueryResult, QueryError> Database::execute(
         QueryResult result;
         result.rows.reserve(stored_rows.size());
         for (auto& stored_row : stored_rows) {
-            result.rows.push_back(ResultRow{std::move(stored_row.values)});
+            if (bound->expressions.empty()) {
+                result.rows.push_back(ResultRow{std::move(stored_row.values)});
+                continue;
+            }
+
+            ResultRow projected_row;
+            projected_row.values.reserve(bound->expressions.size());
+            for (const auto& expression : bound->expressions) {
+                if (const auto* literal =
+                        std::get_if<binder::BoundLiteralExpression>(&expression)) {
+                    projected_row.values.push_back(literal->value);
+                    continue;
+                }
+
+                const auto column_index =
+                    std::get<binder::BoundColumnReferenceExpression>(expression)
+                        .column_index;
+                if (column_index >= stored_row.values.size()) {
+                    throw std::logic_error{
+                        "table schema and stored row state diverged"};
+                }
+                projected_row.values.push_back(
+                    stored_row.values[column_index]);
+            }
+            result.rows.push_back(std::move(projected_row));
         }
         return result;
     }
@@ -84,7 +108,8 @@ std::expected<QueryResult, QueryError> Database::execute(
     ResultRow row;
     row.values.reserve(bound->expressions.size());
     for (const auto& expression : bound->expressions) {
-        row.values.push_back(expression.value);
+        row.values.push_back(
+            std::get<binder::BoundLiteralExpression>(expression).value);
     }
     QueryResult result;
     result.rows.push_back(std::move(row));

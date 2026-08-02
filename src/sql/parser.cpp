@@ -110,12 +110,17 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         if (!token) {
             return std::unexpected(token.error());
         }
-        if (!is_literal(token->type)) {
-            return std::unexpected(ParseError{ParseErrorCode::expected_literal, token->location});
+        if (is_literal(token->type)) {
+            statement.expressions.emplace_back(
+                LiteralExpression{literal_type(token->type), token->lexeme,
+                                  token->location});
+        } else if (token->type == TokenType::identifier) {
+            statement.expressions.emplace_back(
+                ColumnReferenceExpression{token->lexeme, token->location});
+        } else {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_expression, token->location});
         }
-
-        statement.expressions.push_back(
-            LiteralExpression{literal_type(token->type), token->lexeme, token->location});
 
         auto delimiter = next_token();
         if (!delimiter) {
@@ -126,12 +131,42 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             token = next_token();
             continue;
         }
+        if (delimiter->type == TokenType::from) {
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type != TokenType::identifier) {
+                return std::unexpected(
+                    ParseError{ParseErrorCode::expected_identifier,
+                               token->location});
+            }
+            statement.from = TableReference{token->lexeme, token->location};
+
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type == TokenType::semicolon) {
+                token = next_token();
+                if (!token) {
+                    return std::unexpected(token.error());
+                }
+            }
+            if (token->type != TokenType::end_of_input) {
+                return std::unexpected(
+                    ParseError{ParseErrorCode::expected_end_of_input,
+                               token->location});
+            }
+            return statement;
+        }
         if (delimiter->type == TokenType::end_of_input) {
             return statement;
         }
         if (delimiter->type != TokenType::semicolon) {
             return std::unexpected(
-                ParseError{ParseErrorCode::expected_comma_or_end, delimiter->location});
+                ParseError{ParseErrorCode::expected_comma_from_or_end,
+                           delimiter->location});
         }
 
         auto end = next_token();
