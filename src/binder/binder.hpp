@@ -19,6 +19,8 @@ enum class BindErrorCode {
     integer_out_of_range,
     duplicate_column,
     table_not_found,
+    column_requires_table,
+    column_not_found,
     column_count_mismatch,
     type_mismatch,
 };
