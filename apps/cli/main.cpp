@@ -1,9 +1,13 @@
 #include "engine/database.hpp"
 
 #include <cstddef>
+#include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
+#include <utility>
 #include <variant>
 
 namespace {
@@ -19,6 +23,14 @@ void print_error(const minidb::engine::QueryError& error) {
             }
         },
         error);
+}
+
+void print_error(const minidb::engine::DatabaseOpenError& error) {
+    if (std::holds_alternative<minidb::catalog::CatalogError>(error)) {
+        std::cerr << "Invalid database catalog\n";
+    } else {
+        std::cerr << "Cannot open database file\n";
+    }
 }
 
 void print_value(const minidb::types::Value& value) {
@@ -49,14 +61,35 @@ void print_result(const minidb::engine::QueryResult& result) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: minidb \"SQL statement\" [\"SQL statement\" ...]\n";
+    if (argc < 3) {
+        std::cerr << "Usage: minidb <database-file> \"SQL statement\" "
+                     "[\"SQL statement\" ...]\n";
         return 2;
     }
 
-    minidb::engine::Database database;
-    for (int index = 1; index < argc; ++index) {
-        const auto result = database.execute(std::string_view{argv[index]});
+    const std::filesystem::path path{argv[1]};
+    std::optional<minidb::engine::Database> database;
+    if (path == ":memory:") {
+        database.emplace();
+    } else {
+        std::error_code status_error;
+        const bool exists = std::filesystem::exists(path, status_error);
+        if (status_error) {
+            std::cerr << "Cannot access database path\n";
+            return 1;
+        }
+
+        auto opened = exists ? minidb::engine::Database::open(path)
+                             : minidb::engine::Database::create(path);
+        if (!opened) {
+            print_error(opened.error());
+            return 1;
+        }
+        database.emplace(std::move(*opened));
+    }
+
+    for (int index = 2; index < argc; ++index) {
+        const auto result = database->execute(std::string_view{argv[index]});
         if (!result) {
             print_error(result.error());
             return 1;
