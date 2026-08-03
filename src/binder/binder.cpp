@@ -6,6 +6,7 @@
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -111,6 +112,71 @@ BoundComparisonOperator bind_comparison_operator(
     return BoundComparisonOperator::equal;
 }
 
+const sql::SourceLocation& predicate_location(
+    const sql::Predicate& predicate) noexcept {
+    if (const auto* comparison =
+            std::get_if<sql::ComparisonPredicate>(&predicate)) {
+        return comparison->column.location;
+    }
+    if (const auto* null_predicate =
+            std::get_if<sql::NullPredicate>(&predicate)) {
+        return null_predicate->column.location;
+    }
+    return predicate_location(
+        std::get<std::unique_ptr<sql::LogicalPredicate>>(predicate)->left);
+}
+
+std::expected<BoundPredicate, BindError> bind_predicate(
+    const sql::Predicate& predicate, const catalog::TableSchema& table) {
+    if (const auto* comparison =
+            std::get_if<sql::ComparisonPredicate>(&predicate)) {
+        const std::size_t column_index =
+            find_column_index(table, comparison->column.name);
+        if (column_index == table.columns.size()) {
+            return std::unexpected(BindError{
+                BindErrorCode::column_not_found, comparison->column.location});
+        }
+
+        auto value = bind_literal(comparison->value);
+        if (!value) {
+            return std::unexpected(value.error());
+        }
+        if (!value_matches_type(value->value, table.columns[column_index].type)) {
+            return std::unexpected(
+                BindError{BindErrorCode::type_mismatch, value->location});
+        }
+        return BoundPredicate{BoundComparisonPredicate{
+            column_index, bind_comparison_operator(comparison->comparison),
+            std::move(value->value)}};
+    }
+
+    if (const auto* null_predicate =
+            std::get_if<sql::NullPredicate>(&predicate)) {
+        const std::size_t column_index =
+            find_column_index(table, null_predicate->column.name);
+        if (column_index == table.columns.size()) {
+            return std::unexpected(BindError{
+                BindErrorCode::column_not_found, null_predicate->column.location});
+        }
+        return BoundPredicate{
+            BoundNullPredicate{column_index, null_predicate->negated}};
+    }
+
+    const auto& logical =
+        *std::get<std::unique_ptr<sql::LogicalPredicate>>(predicate);
+    auto left = bind_predicate(logical.left, table);
+    if (!left) {
+        return std::unexpected(left.error());
+    }
+    auto right = bind_predicate(logical.right, table);
+    if (!right) {
+        return std::unexpected(right.error());
+    }
+    return BoundPredicate{std::make_unique<BoundLogicalPredicate>(
+        BoundLogicalPredicate{BoundLogicalOperator::conjunction,
+                              std::move(*left), std::move(*right)})};
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -171,45 +237,16 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
 
     if (statement.where) {
-        const auto& column = std::visit(
-            [](const auto& predicate)
-                -> const sql::ColumnReferenceExpression& {
-                return predicate.column;
-            },
-            *statement.where);
         if (table == nullptr) {
             return std::unexpected(
                 BindError{BindErrorCode::column_requires_table,
-                          column.location});
+                          predicate_location(*statement.where)});
         }
-        const std::size_t column_index =
-            find_column_index(*table, column.name);
-        if (column_index == table->columns.size()) {
-            return std::unexpected(
-                BindError{BindErrorCode::column_not_found, column.location});
+        auto predicate = bind_predicate(*statement.where, *table);
+        if (!predicate) {
+            return std::unexpected(predicate.error());
         }
-
-        if (const auto* comparison =
-                std::get_if<sql::ComparisonPredicate>(&*statement.where)) {
-            auto value = bind_literal(comparison->value);
-            if (!value) {
-                return std::unexpected(value.error());
-            }
-            if (!value_matches_type(value->value,
-                                    table->columns[column_index].type)) {
-                return std::unexpected(
-                    BindError{BindErrorCode::type_mismatch, value->location});
-            }
-            bound_statement.where = BoundComparisonPredicate{
-                column_index,
-                bind_comparison_operator(comparison->comparison),
-                std::move(value->value)};
-        } else {
-            const auto& null_predicate =
-                std::get<sql::NullPredicate>(*statement.where);
-            bound_statement.where =
-                BoundNullPredicate{column_index, null_predicate.negated};
-        }
+        bound_statement.where = std::move(*predicate);
     }
 
     return bound_statement;

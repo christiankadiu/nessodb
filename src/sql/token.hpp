@@ -16,6 +16,7 @@ enum class TokenType {
     where,
     is,
     not_keyword,
+    and_keyword,
     create,
     table,
     insert,

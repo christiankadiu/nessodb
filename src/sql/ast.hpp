@@ -2,6 +2,7 @@
 
 #include "sql/token.hpp"
 
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <variant>
@@ -54,7 +55,21 @@ struct NullPredicate {
     bool negated{};
 };
 
-using Predicate = std::variant<ComparisonPredicate, NullPredicate>;
+struct LogicalPredicate;
+
+using Predicate =
+    std::variant<ComparisonPredicate, NullPredicate,
+                 std::unique_ptr<LogicalPredicate>>;
+
+enum class LogicalOperator {
+    conjunction,
+};
+
+struct LogicalPredicate {
+    LogicalOperator operation;
+    Predicate left;
+    Predicate right;
+};
 
 struct SelectStatement {
     std::vector<SelectExpression> expressions;

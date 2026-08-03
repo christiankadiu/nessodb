@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace minidb::engine {
 namespace {
@@ -58,18 +59,31 @@ bool matches_comparison(const types::Value& left, const types::Value& right,
     return false;
 }
 
-bool matches_predicate(const types::Value& value,
+bool matches_predicate(const std::vector<types::Value>& values,
                        const binder::BoundPredicate& predicate) {
     if (const auto* comparison =
             std::get_if<binder::BoundComparisonPredicate>(&predicate)) {
-        return matches_comparison(value, comparison->value,
+        if (comparison->column_index >= values.size()) {
+            throw std::logic_error{"table schema and stored row state diverged"};
+        }
+        return matches_comparison(values[comparison->column_index], comparison->value,
                                   comparison->comparison);
     }
 
-    const auto& null_predicate =
-        std::get<binder::BoundNullPredicate>(predicate);
-    const bool is_null = std::holds_alternative<types::NullValue>(value);
-    return null_predicate.negated ? !is_null : is_null;
+    if (const auto* null_predicate =
+            std::get_if<binder::BoundNullPredicate>(&predicate)) {
+        if (null_predicate->column_index >= values.size()) {
+            throw std::logic_error{"table schema and stored row state diverged"};
+        }
+        const bool is_null = std::holds_alternative<types::NullValue>(
+            values[null_predicate->column_index]);
+        return null_predicate->negated ? !is_null : is_null;
+    }
+
+    const auto& logical =
+        *std::get<std::unique_ptr<binder::BoundLogicalPredicate>>(predicate);
+    return matches_predicate(values, logical.left) &&
+           matches_predicate(values, logical.right);
 }
 
 }  // namespace
@@ -141,20 +155,9 @@ std::expected<QueryResult, QueryError> Database::execute(
         QueryResult result;
         result.rows.reserve(stored_rows.size());
         for (auto& stored_row : stored_rows) {
-            if (bound->where) {
-                const auto column_index = std::visit(
-                    [](const auto& predicate) {
-                        return predicate.column_index;
-                    },
-                    *bound->where);
-                if (column_index >= stored_row.values.size()) {
-                    throw std::logic_error{
-                        "table schema and stored row state diverged"};
-                }
-                const auto& stored_value = stored_row.values[column_index];
-                if (!matches_predicate(stored_value, *bound->where)) {
-                    continue;
-                }
+            if (bound->where &&
+                !matches_predicate(stored_row.values, *bound->where)) {
+                continue;
             }
 
             if (bound->expressions.empty()) {
