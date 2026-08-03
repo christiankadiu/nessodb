@@ -17,6 +17,7 @@ enum class TokenType {
     is,
     not_keyword,
     and_keyword,
+    or_keyword,
     create,
     table,
     insert,

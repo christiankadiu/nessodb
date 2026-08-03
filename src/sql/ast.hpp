@@ -63,6 +63,7 @@ using Predicate =
 
 enum class LogicalOperator {
     conjunction,
+    disjunction,
 };
 
 struct LogicalPredicate {

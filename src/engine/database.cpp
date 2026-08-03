@@ -82,8 +82,15 @@ bool matches_predicate(const std::vector<types::Value>& values,
 
     const auto& logical =
         *std::get<std::unique_ptr<binder::BoundLogicalPredicate>>(predicate);
-    return matches_predicate(values, logical.left) &&
-           matches_predicate(values, logical.right);
+    switch (logical.operation) {
+        case binder::BoundLogicalOperator::conjunction:
+            return matches_predicate(values, logical.left) &&
+                   matches_predicate(values, logical.right);
+        case binder::BoundLogicalOperator::disjunction:
+            return matches_predicate(values, logical.left) ||
+                   matches_predicate(values, logical.right);
+    }
+    return false;
 }
 
 }  // namespace
