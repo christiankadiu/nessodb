@@ -34,10 +34,16 @@ struct TableReference {
     SourceLocation location;
 };
 
+struct EqualityPredicate {
+    ColumnReferenceExpression column;
+    LiteralExpression value;
+};
+
 struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
     std::optional<TableReference> from;
+    std::optional<EqualityPredicate> where;
 };
 
 enum class ColumnType {

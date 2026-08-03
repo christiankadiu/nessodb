@@ -82,6 +82,16 @@ bool value_matches_type(const types::Value& value, types::LogicalType type) noex
     return std::holds_alternative<std::string>(value);
 }
 
+std::size_t find_column_index(const catalog::TableSchema& table,
+                              std::string_view name) noexcept {
+    std::size_t index = 0;
+    while (index < table.columns.size() &&
+           !common::identifiers_equal(table.columns[index].name, name)) {
+        ++index;
+    }
+    return index;
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -100,7 +110,9 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         if (table == nullptr) {
             return std::unexpected(BindError{BindErrorCode::table_not_found, {}});
         }
-        return BoundSelectStatement{{}, table->id};
+        BoundSelectStatement bound_statement;
+        bound_statement.table_id = table->id;
+        return bound_statement;
     }
 
     BoundSelectStatement bound_statement;
@@ -129,18 +141,41 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                           column.location});
         }
 
-        std::size_t column_index = 0;
-        while (column_index < table->columns.size() &&
-               !common::identifiers_equal(table->columns[column_index].name,
-                                          column.name)) {
-            ++column_index;
-        }
+        const std::size_t column_index =
+            find_column_index(*table, column.name);
         if (column_index == table->columns.size()) {
             return std::unexpected(
                 BindError{BindErrorCode::column_not_found, column.location});
         }
         bound_statement.expressions.emplace_back(
             BoundColumnReferenceExpression{column_index, column.location});
+    }
+
+    if (statement.where) {
+        if (table == nullptr) {
+            return std::unexpected(
+                BindError{BindErrorCode::column_requires_table,
+                          statement.where->column.location});
+        }
+        const std::size_t column_index =
+            find_column_index(*table, statement.where->column.name);
+        if (column_index == table->columns.size()) {
+            return std::unexpected(
+                BindError{BindErrorCode::column_not_found,
+                          statement.where->column.location});
+        }
+
+        auto value = bind_literal(statement.where->value);
+        if (!value) {
+            return std::unexpected(value.error());
+        }
+        if (!value_matches_type(value->value,
+                                table->columns[column_index].type)) {
+            return std::unexpected(
+                BindError{BindErrorCode::type_mismatch, value->location});
+        }
+        bound_statement.where =
+            BoundEqualityPredicate{column_index, std::move(value->value)};
     }
 
     return bound_statement;

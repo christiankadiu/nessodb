@@ -15,6 +15,7 @@ enum class ParseErrorCode {
     expected_literal,
     expected_expression,
     expected_from,
+    expected_equal,
     expected_comma_from_or_end,
     expected_end_of_input,
     expected_create,
@@ -44,6 +45,8 @@ public:
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
+    [[nodiscard]] std::expected<void, ParseError> parse_select_table_tail(
+        SelectStatement& statement);
 
     Lexer lexer_;
 };

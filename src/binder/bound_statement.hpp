@@ -6,6 +6,7 @@
 #include "types/value.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -25,9 +26,15 @@ struct BoundColumnReferenceExpression {
 using BoundSelectExpression =
     std::variant<BoundLiteralExpression, BoundColumnReferenceExpression>;
 
+struct BoundEqualityPredicate {
+    std::size_t column_index;
+    types::Value value;
+};
+
 struct BoundSelectStatement {
     std::vector<BoundSelectExpression> expressions;
     common::TableId table_id;
+    std::optional<BoundEqualityPredicate> where;
 };
 
 struct BoundColumnDefinition {
