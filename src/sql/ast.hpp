@@ -49,11 +49,18 @@ struct ComparisonPredicate {
     LiteralExpression value;
 };
 
+struct NullPredicate {
+    ColumnReferenceExpression column;
+    bool negated{};
+};
+
+using Predicate = std::variant<ComparisonPredicate, NullPredicate>;
+
 struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
     std::optional<TableReference> from;
-    std::optional<ComparisonPredicate> where;
+    std::optional<Predicate> where;
 };
 
 enum class ColumnType {

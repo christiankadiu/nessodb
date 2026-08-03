@@ -41,10 +41,18 @@ struct BoundComparisonPredicate {
     types::Value value;
 };
 
+struct BoundNullPredicate {
+    std::size_t column_index;
+    bool negated{};
+};
+
+using BoundPredicate =
+    std::variant<BoundComparisonPredicate, BoundNullPredicate>;
+
 struct BoundSelectStatement {
     std::vector<BoundSelectExpression> expressions;
     common::TableId table_id;
-    std::optional<BoundComparisonPredicate> where;
+    std::optional<BoundPredicate> where;
 };
 
 struct BoundColumnDefinition {

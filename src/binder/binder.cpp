@@ -171,33 +171,45 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
 
     if (statement.where) {
+        const auto& column = std::visit(
+            [](const auto& predicate)
+                -> const sql::ColumnReferenceExpression& {
+                return predicate.column;
+            },
+            *statement.where);
         if (table == nullptr) {
             return std::unexpected(
                 BindError{BindErrorCode::column_requires_table,
-                          statement.where->column.location});
+                          column.location});
         }
         const std::size_t column_index =
-            find_column_index(*table, statement.where->column.name);
+            find_column_index(*table, column.name);
         if (column_index == table->columns.size()) {
             return std::unexpected(
-                BindError{BindErrorCode::column_not_found,
-                          statement.where->column.location});
+                BindError{BindErrorCode::column_not_found, column.location});
         }
 
-        auto value = bind_literal(statement.where->value);
-        if (!value) {
-            return std::unexpected(value.error());
-        }
-        if (!value_matches_type(value->value,
-                                table->columns[column_index].type)) {
-            return std::unexpected(
-                BindError{BindErrorCode::type_mismatch, value->location});
-        }
-        bound_statement.where =
-            BoundComparisonPredicate{
+        if (const auto* comparison =
+                std::get_if<sql::ComparisonPredicate>(&*statement.where)) {
+            auto value = bind_literal(comparison->value);
+            if (!value) {
+                return std::unexpected(value.error());
+            }
+            if (!value_matches_type(value->value,
+                                    table->columns[column_index].type)) {
+                return std::unexpected(
+                    BindError{BindErrorCode::type_mismatch, value->location});
+            }
+            bound_statement.where = BoundComparisonPredicate{
                 column_index,
-                bind_comparison_operator(statement.where->comparison),
+                bind_comparison_operator(comparison->comparison),
                 std::move(value->value)};
+        } else {
+            const auto& null_predicate =
+                std::get<sql::NullPredicate>(*statement.where);
+            bound_statement.where =
+                BoundNullPredicate{column_index, null_predicate.negated};
+        }
     }
 
     return bound_statement;

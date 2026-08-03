@@ -58,6 +58,20 @@ bool matches_comparison(const types::Value& left, const types::Value& right,
     return false;
 }
 
+bool matches_predicate(const types::Value& value,
+                       const binder::BoundPredicate& predicate) {
+    if (const auto* comparison =
+            std::get_if<binder::BoundComparisonPredicate>(&predicate)) {
+        return matches_comparison(value, comparison->value,
+                                  comparison->comparison);
+    }
+
+    const auto& null_predicate =
+        std::get<binder::BoundNullPredicate>(predicate);
+    const bool is_null = std::holds_alternative<types::NullValue>(value);
+    return null_predicate.negated ? !is_null : is_null;
+}
+
 }  // namespace
 
 Database::Database(catalog::Catalog catalog, storage::StorageManager storage)
@@ -128,15 +142,17 @@ std::expected<QueryResult, QueryError> Database::execute(
         result.rows.reserve(stored_rows.size());
         for (auto& stored_row : stored_rows) {
             if (bound->where) {
-                const auto column_index = bound->where->column_index;
+                const auto column_index = std::visit(
+                    [](const auto& predicate) {
+                        return predicate.column_index;
+                    },
+                    *bound->where);
                 if (column_index >= stored_row.values.size()) {
                     throw std::logic_error{
                         "table schema and stored row state diverged"};
                 }
                 const auto& stored_value = stored_row.values[column_index];
-                const auto& expected_value = bound->where->value;
-                if (!matches_comparison(stored_value, expected_value,
-                                        bound->where->comparison)) {
+                if (!matches_predicate(stored_value, *bound->where)) {
                     continue;
                 }
             }
