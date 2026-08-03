@@ -76,6 +76,21 @@ std::expected<QueryResult, QueryError> Database::execute(
         QueryResult result;
         result.rows.reserve(stored_rows.size());
         for (auto& stored_row : stored_rows) {
+            if (bound->where) {
+                const auto column_index = bound->where->column_index;
+                if (column_index >= stored_row.values.size()) {
+                    throw std::logic_error{
+                        "table schema and stored row state diverged"};
+                }
+                const auto& stored_value = stored_row.values[column_index];
+                const auto& expected_value = bound->where->value;
+                if (std::holds_alternative<types::NullValue>(stored_value) ||
+                    std::holds_alternative<types::NullValue>(expected_value) ||
+                    stored_value != expected_value) {
+                    continue;
+                }
+            }
+
             if (bound->expressions.empty()) {
                 result.rows.push_back(ResultRow{std::move(stored_row.values)});
                 continue;

@@ -89,19 +89,9 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         }
         statement.from = TableReference{token->lexeme, token->location};
 
-        token = next_token();
-        if (!token) {
-            return std::unexpected(token.error());
-        }
-        if (token->type == TokenType::semicolon) {
-            token = next_token();
-            if (!token) {
-                return std::unexpected(token.error());
-            }
-        }
-        if (token->type != TokenType::end_of_input) {
-            return std::unexpected(
-                ParseError{ParseErrorCode::expected_end_of_input, token->location});
+        auto tail = parse_select_table_tail(statement);
+        if (!tail) {
+            return std::unexpected(tail.error());
         }
         return statement;
     }
@@ -143,20 +133,9 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             }
             statement.from = TableReference{token->lexeme, token->location};
 
-            token = next_token();
-            if (!token) {
-                return std::unexpected(token.error());
-            }
-            if (token->type == TokenType::semicolon) {
-                token = next_token();
-                if (!token) {
-                    return std::unexpected(token.error());
-                }
-            }
-            if (token->type != TokenType::end_of_input) {
-                return std::unexpected(
-                    ParseError{ParseErrorCode::expected_end_of_input,
-                               token->location});
+            auto tail = parse_select_table_tail(statement);
+            if (!tail) {
+                return std::unexpected(tail.error());
             }
             return statement;
         }
@@ -179,6 +158,66 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         }
         return statement;
     }
+}
+
+std::expected<void, ParseError> Parser::parse_select_table_tail(
+    SelectStatement& statement) {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+
+    if (token->type == TokenType::where) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::identifier) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_identifier,
+                           token->location});
+        }
+        const ColumnReferenceExpression column{token->lexeme, token->location};
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::equal) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_equal, token->location});
+        }
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (!is_literal(token->type)) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_literal, token->location});
+        }
+        statement.where = EqualityPredicate{
+            column,
+            LiteralExpression{literal_type(token->type), token->lexeme,
+                              token->location}};
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+
+    if (token->type == TokenType::semicolon) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    if (token->type != TokenType::end_of_input) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_end_of_input, token->location});
+    }
+    return {};
 }
 
 std::expected<CreateTableStatement, ParseError> Parser::parse_create_table_statement() {
