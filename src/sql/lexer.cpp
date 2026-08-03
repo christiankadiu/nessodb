@@ -133,6 +133,10 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::from;
     } else if (equals_case_insensitive(token.lexeme, "where")) {
         token.type = TokenType::where;
+    } else if (equals_case_insensitive(token.lexeme, "is")) {
+        token.type = TokenType::is;
+    } else if (equals_case_insensitive(token.lexeme, "not")) {
+        token.type = TokenType::not_keyword;
     } else if (equals_case_insensitive(token.lexeme, "null")) {
         token.type = TokenType::null_literal;
     } else if (equals_case_insensitive(token.lexeme, "create")) {

@@ -208,25 +208,49 @@ std::expected<void, ParseError> Parser::parse_select_table_tail(
         if (!token) {
             return std::unexpected(token.error());
         }
-        if (!is_comparison_operator(token->type)) {
+
+        if (is_comparison_operator(token->type)) {
+            const ComparisonOperator comparison =
+                comparison_operator(token->type);
+
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (!is_literal(token->type)) {
+                return std::unexpected(
+                    ParseError{ParseErrorCode::expected_literal,
+                               token->location});
+            }
+            statement.where = ComparisonPredicate{
+                column, comparison,
+                LiteralExpression{literal_type(token->type), token->lexeme,
+                                  token->location}};
+        } else if (token->type == TokenType::is) {
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+
+            bool negated = false;
+            if (token->type == TokenType::not_keyword) {
+                negated = true;
+                token = next_token();
+                if (!token) {
+                    return std::unexpected(token.error());
+                }
+            }
+            if (token->type != TokenType::null_literal) {
+                return std::unexpected(
+                    ParseError{ParseErrorCode::expected_null,
+                               token->location});
+            }
+            statement.where = NullPredicate{column, negated};
+        } else {
             return std::unexpected(
-                ParseError{ParseErrorCode::expected_comparison_operator,
+                ParseError{ParseErrorCode::expected_predicate_operator,
                            token->location});
         }
-        const ComparisonOperator comparison = comparison_operator(token->type);
-
-        token = next_token();
-        if (!token) {
-            return std::unexpected(token.error());
-        }
-        if (!is_literal(token->type)) {
-            return std::unexpected(
-                ParseError{ParseErrorCode::expected_literal, token->location});
-        }
-        statement.where = ComparisonPredicate{
-            column, comparison,
-            LiteralExpression{literal_type(token->type), token->lexeme,
-                              token->location}};
 
         token = next_token();
         if (!token) {
