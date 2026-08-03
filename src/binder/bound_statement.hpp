@@ -48,10 +48,12 @@ struct BoundNullPredicate {
 };
 
 struct BoundLogicalPredicate;
+struct BoundNegationPredicate;
 
 using BoundPredicate =
     std::variant<BoundComparisonPredicate, BoundNullPredicate,
-                 std::unique_ptr<BoundLogicalPredicate>>;
+                 std::unique_ptr<BoundLogicalPredicate>,
+                 std::unique_ptr<BoundNegationPredicate>>;
 
 enum class BoundLogicalOperator {
     conjunction,
@@ -62,6 +64,10 @@ struct BoundLogicalPredicate {
     BoundLogicalOperator operation;
     BoundPredicate left;
     BoundPredicate right;
+};
+
+struct BoundNegationPredicate {
+    BoundPredicate operand;
 };
 
 struct BoundSelectStatement {
