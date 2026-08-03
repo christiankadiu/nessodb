@@ -26,15 +26,25 @@ struct BoundColumnReferenceExpression {
 using BoundSelectExpression =
     std::variant<BoundLiteralExpression, BoundColumnReferenceExpression>;
 
-struct BoundEqualityPredicate {
+enum class BoundComparisonOperator {
+    equal,
+    not_equal,
+    less,
+    less_equal,
+    greater,
+    greater_equal,
+};
+
+struct BoundComparisonPredicate {
     std::size_t column_index;
+    BoundComparisonOperator comparison;
     types::Value value;
 };
 
 struct BoundSelectStatement {
     std::vector<BoundSelectExpression> expressions;
     common::TableId table_id;
-    std::optional<BoundEqualityPredicate> where;
+    std::optional<BoundComparisonPredicate> where;
 };
 
 struct BoundColumnDefinition {

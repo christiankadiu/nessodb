@@ -3,11 +3,62 @@
 #include "binder/binder.hpp"
 #include "sql/parser.hpp"
 
+#include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <variant>
 
 namespace minidb::engine {
+namespace {
+
+bool matches_comparison(const types::Value& left, const types::Value& right,
+                        binder::BoundComparisonOperator comparison) {
+    if (std::holds_alternative<types::NullValue>(left) ||
+        std::holds_alternative<types::NullValue>(right)) {
+        return false;
+    }
+    if (left.index() != right.index()) {
+        throw std::logic_error{"bound predicate and stored value types diverged"};
+    }
+
+    if (comparison == binder::BoundComparisonOperator::equal) {
+        return left == right;
+    }
+    if (comparison == binder::BoundComparisonOperator::not_equal) {
+        return left != right;
+    }
+
+    bool less = false;
+    bool greater = false;
+    if (const auto* left_integer = std::get_if<std::int64_t>(&left)) {
+        const auto right_integer = std::get<std::int64_t>(right);
+        less = *left_integer < right_integer;
+        greater = *left_integer > right_integer;
+    } else {
+        const auto& left_text = std::get<std::string>(left);
+        const auto& right_text = std::get<std::string>(right);
+        less = left_text < right_text;
+        greater = left_text > right_text;
+    }
+
+    switch (comparison) {
+        case binder::BoundComparisonOperator::less:
+            return less;
+        case binder::BoundComparisonOperator::less_equal:
+            return !greater;
+        case binder::BoundComparisonOperator::greater:
+            return greater;
+        case binder::BoundComparisonOperator::greater_equal:
+            return !less;
+        case binder::BoundComparisonOperator::equal:
+        case binder::BoundComparisonOperator::not_equal:
+            break;
+    }
+    return false;
+}
+
+}  // namespace
 
 Database::Database(catalog::Catalog catalog, storage::StorageManager storage)
     : catalog_(std::move(catalog)), storage_(std::move(storage)) {}
@@ -84,9 +135,8 @@ std::expected<QueryResult, QueryError> Database::execute(
                 }
                 const auto& stored_value = stored_row.values[column_index];
                 const auto& expected_value = bound->where->value;
-                if (std::holds_alternative<types::NullValue>(stored_value) ||
-                    std::holds_alternative<types::NullValue>(expected_value) ||
-                    stored_value != expected_value) {
+                if (!matches_comparison(stored_value, expected_value,
+                                        bound->where->comparison)) {
                     continue;
                 }
             }
