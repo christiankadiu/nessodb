@@ -4,6 +4,7 @@
 #include "sql/lexer.hpp"
 
 #include <expected>
+#include <optional>
 #include <string_view>
 
 namespace minidb::sql {
@@ -23,6 +24,7 @@ enum class ParseErrorCode {
     expected_table,
     expected_identifier,
     expected_left_parenthesis,
+    expected_right_parenthesis,
     expected_column_type,
     expected_comma_or_right_parenthesis,
     expected_insert,
@@ -46,11 +48,15 @@ public:
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
+    [[nodiscard]] std::expected<Token, ParseError> peek_token();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_predicate();
+    [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
+    [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();
     [[nodiscard]] std::expected<void, ParseError> parse_select_table_tail(
         SelectStatement& statement);
 
     Lexer lexer_;
+    std::optional<Token> lookahead_;
 };
 
 }  // namespace minidb::sql
