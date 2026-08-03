@@ -112,6 +112,17 @@ BoundComparisonOperator bind_comparison_operator(
     return BoundComparisonOperator::equal;
 }
 
+BoundLogicalOperator bind_logical_operator(
+    sql::LogicalOperator operation) noexcept {
+    switch (operation) {
+        case sql::LogicalOperator::conjunction:
+            return BoundLogicalOperator::conjunction;
+        case sql::LogicalOperator::disjunction:
+            return BoundLogicalOperator::disjunction;
+    }
+    return BoundLogicalOperator::conjunction;
+}
+
 const sql::SourceLocation& predicate_location(
     const sql::Predicate& predicate) noexcept {
     if (const auto* comparison =
@@ -173,7 +184,7 @@ std::expected<BoundPredicate, BindError> bind_predicate(
         return std::unexpected(right.error());
     }
     return BoundPredicate{std::make_unique<BoundLogicalPredicate>(
-        BoundLogicalPredicate{BoundLogicalOperator::conjunction,
+        BoundLogicalPredicate{bind_logical_operator(logical.operation),
                               std::move(*left), std::move(*right)})};
 }
 

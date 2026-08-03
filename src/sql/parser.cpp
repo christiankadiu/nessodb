@@ -275,6 +275,37 @@ std::expected<void, ParseError> Parser::parse_select_table_tail(
                 return std::unexpected(token.error());
             }
         }
+
+        while (token->type == TokenType::or_keyword) {
+            auto right = parse_predicate();
+            if (!right) {
+                return std::unexpected(right.error());
+            }
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+
+            while (token->type == TokenType::and_keyword) {
+                auto conjunction_right = parse_predicate();
+                if (!conjunction_right) {
+                    return std::unexpected(conjunction_right.error());
+                }
+                right = Predicate{std::make_unique<LogicalPredicate>(
+                    LogicalPredicate{LogicalOperator::conjunction,
+                                     std::move(*right),
+                                     std::move(*conjunction_right)})};
+
+                token = next_token();
+                if (!token) {
+                    return std::unexpected(token.error());
+                }
+            }
+
+            predicate = Predicate{std::make_unique<LogicalPredicate>(
+                LogicalPredicate{LogicalOperator::disjunction,
+                                 std::move(*predicate), std::move(*right)})};
+        }
         statement.where = std::move(*predicate);
     }
 

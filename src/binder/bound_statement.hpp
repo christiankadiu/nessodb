@@ -55,6 +55,7 @@ using BoundPredicate =
 
 enum class BoundLogicalOperator {
     conjunction,
+    disjunction,
 };
 
 struct BoundLogicalPredicate {
