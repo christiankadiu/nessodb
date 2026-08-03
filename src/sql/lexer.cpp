@@ -59,6 +59,24 @@ std::expected<Token, LexError> Lexer::next() {
     if (character == '=') {
         return make_token(TokenType::equal, start);
     }
+    if (character == '!' && !at_end() && peek() == '=') {
+        advance();
+        return make_token(TokenType::not_equal, start);
+    }
+    if (character == '<') {
+        if (!at_end() && peek() == '=') {
+            advance();
+            return make_token(TokenType::less_equal, start);
+        }
+        return make_token(TokenType::less, start);
+    }
+    if (character == '>') {
+        if (!at_end() && peek() == '=') {
+            advance();
+            return make_token(TokenType::greater_equal, start);
+        }
+        return make_token(TokenType::greater, start);
+    }
     if (character == ';') {
         return make_token(TokenType::semicolon, start);
     }

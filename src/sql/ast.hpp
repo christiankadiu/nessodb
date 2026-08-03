@@ -34,8 +34,18 @@ struct TableReference {
     SourceLocation location;
 };
 
-struct EqualityPredicate {
+enum class ComparisonOperator {
+    equal,
+    not_equal,
+    less,
+    less_equal,
+    greater,
+    greater_equal,
+};
+
+struct ComparisonPredicate {
     ColumnReferenceExpression column;
+    ComparisonOperator comparison;
     LiteralExpression value;
 };
 
@@ -43,7 +53,7 @@ struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
     std::optional<TableReference> from;
-    std::optional<EqualityPredicate> where;
+    std::optional<ComparisonPredicate> where;
 };
 
 enum class ColumnType {

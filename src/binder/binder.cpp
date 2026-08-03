@@ -92,6 +92,25 @@ std::size_t find_column_index(const catalog::TableSchema& table,
     return index;
 }
 
+BoundComparisonOperator bind_comparison_operator(
+    sql::ComparisonOperator comparison) noexcept {
+    switch (comparison) {
+        case sql::ComparisonOperator::equal:
+            return BoundComparisonOperator::equal;
+        case sql::ComparisonOperator::not_equal:
+            return BoundComparisonOperator::not_equal;
+        case sql::ComparisonOperator::less:
+            return BoundComparisonOperator::less;
+        case sql::ComparisonOperator::less_equal:
+            return BoundComparisonOperator::less_equal;
+        case sql::ComparisonOperator::greater:
+            return BoundComparisonOperator::greater;
+        case sql::ComparisonOperator::greater_equal:
+            return BoundComparisonOperator::greater_equal;
+    }
+    return BoundComparisonOperator::equal;
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -175,7 +194,10 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 BindError{BindErrorCode::type_mismatch, value->location});
         }
         bound_statement.where =
-            BoundEqualityPredicate{column_index, std::move(value->value)};
+            BoundComparisonPredicate{
+                column_index,
+                bind_comparison_operator(statement.where->comparison),
+                std::move(value->value)};
     }
 
     return bound_statement;

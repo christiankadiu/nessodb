@@ -15,7 +15,7 @@ enum class ParseErrorCode {
     expected_literal,
     expected_expression,
     expected_from,
-    expected_equal,
+    expected_comparison_operator,
     expected_comma_from_or_end,
     expected_end_of_input,
     expected_create,

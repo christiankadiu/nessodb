@@ -20,6 +20,31 @@ LiteralType literal_type(TokenType type) noexcept {
     return LiteralType::null;
 }
 
+bool is_comparison_operator(TokenType type) noexcept {
+    return type == TokenType::equal || type == TokenType::not_equal ||
+           type == TokenType::less || type == TokenType::less_equal ||
+           type == TokenType::greater || type == TokenType::greater_equal;
+}
+
+ComparisonOperator comparison_operator(TokenType type) noexcept {
+    switch (type) {
+        case TokenType::equal:
+            return ComparisonOperator::equal;
+        case TokenType::not_equal:
+            return ComparisonOperator::not_equal;
+        case TokenType::less:
+            return ComparisonOperator::less;
+        case TokenType::less_equal:
+            return ComparisonOperator::less_equal;
+        case TokenType::greater:
+            return ComparisonOperator::greater;
+        case TokenType::greater_equal:
+            return ComparisonOperator::greater_equal;
+        default:
+            return ComparisonOperator::equal;
+    }
+}
+
 }  // namespace
 
 Parser::Parser(std::string_view source) noexcept : lexer_(source) {}
@@ -183,10 +208,12 @@ std::expected<void, ParseError> Parser::parse_select_table_tail(
         if (!token) {
             return std::unexpected(token.error());
         }
-        if (token->type != TokenType::equal) {
+        if (!is_comparison_operator(token->type)) {
             return std::unexpected(
-                ParseError{ParseErrorCode::expected_equal, token->location});
+                ParseError{ParseErrorCode::expected_comparison_operator,
+                           token->location});
         }
+        const ComparisonOperator comparison = comparison_operator(token->type);
 
         token = next_token();
         if (!token) {
@@ -196,8 +223,8 @@ std::expected<void, ParseError> Parser::parse_select_table_tail(
             return std::unexpected(
                 ParseError{ParseErrorCode::expected_literal, token->location});
         }
-        statement.where = EqualityPredicate{
-            column,
+        statement.where = ComparisonPredicate{
+            column, comparison,
             LiteralExpression{literal_type(token->type), token->lexeme,
                               token->location}};
 
