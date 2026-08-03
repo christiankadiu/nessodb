@@ -46,6 +46,7 @@ public:
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
+    [[nodiscard]] std::expected<Predicate, ParseError> parse_predicate();
     [[nodiscard]] std::expected<void, ParseError> parse_select_table_tail(
         SelectStatement& statement);
 

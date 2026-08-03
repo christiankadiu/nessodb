@@ -6,6 +6,7 @@
 #include "types/value.hpp"
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -46,8 +47,21 @@ struct BoundNullPredicate {
     bool negated{};
 };
 
+struct BoundLogicalPredicate;
+
 using BoundPredicate =
-    std::variant<BoundComparisonPredicate, BoundNullPredicate>;
+    std::variant<BoundComparisonPredicate, BoundNullPredicate,
+                 std::unique_ptr<BoundLogicalPredicate>>;
+
+enum class BoundLogicalOperator {
+    conjunction,
+};
+
+struct BoundLogicalPredicate {
+    BoundLogicalOperator operation;
+    BoundPredicate left;
+    BoundPredicate right;
+};
 
 struct BoundSelectStatement {
     std::vector<BoundSelectExpression> expressions;

@@ -1,5 +1,6 @@
 #include "sql/parser.hpp"
 
+#include <memory>
 #include <utility>
 
 namespace minidb::sql {
@@ -185,6 +186,64 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 }
 
+std::expected<Predicate, ParseError> Parser::parse_predicate() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::identifier) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_identifier, token->location});
+    }
+    const ColumnReferenceExpression column{token->lexeme, token->location};
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+
+    if (is_comparison_operator(token->type)) {
+        const ComparisonOperator comparison = comparison_operator(token->type);
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (!is_literal(token->type)) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_literal, token->location});
+        }
+        return Predicate{ComparisonPredicate{
+            column, comparison,
+            LiteralExpression{literal_type(token->type), token->lexeme,
+                              token->location}}};
+    }
+
+    if (token->type != TokenType::is) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_predicate_operator, token->location});
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+
+    bool negated = false;
+    if (token->type == TokenType::not_keyword) {
+        negated = true;
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    if (token->type != TokenType::null_literal) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_null, token->location});
+    }
+    return Predicate{NullPredicate{column, negated}};
+}
+
 std::expected<void, ParseError> Parser::parse_select_table_tail(
     SelectStatement& statement) {
     auto token = next_token();
@@ -193,69 +252,30 @@ std::expected<void, ParseError> Parser::parse_select_table_tail(
     }
 
     if (token->type == TokenType::where) {
-        token = next_token();
-        if (!token) {
-            return std::unexpected(token.error());
+        auto predicate = parse_predicate();
+        if (!predicate) {
+            return std::unexpected(predicate.error());
         }
-        if (token->type != TokenType::identifier) {
-            return std::unexpected(
-                ParseError{ParseErrorCode::expected_identifier,
-                           token->location});
-        }
-        const ColumnReferenceExpression column{token->lexeme, token->location};
-
         token = next_token();
         if (!token) {
             return std::unexpected(token.error());
         }
 
-        if (is_comparison_operator(token->type)) {
-            const ComparisonOperator comparison =
-                comparison_operator(token->type);
+        while (token->type == TokenType::and_keyword) {
+            auto right = parse_predicate();
+            if (!right) {
+                return std::unexpected(right.error());
+            }
+            predicate = Predicate{std::make_unique<LogicalPredicate>(
+                LogicalPredicate{LogicalOperator::conjunction,
+                                 std::move(*predicate), std::move(*right)})};
 
             token = next_token();
             if (!token) {
                 return std::unexpected(token.error());
             }
-            if (!is_literal(token->type)) {
-                return std::unexpected(
-                    ParseError{ParseErrorCode::expected_literal,
-                               token->location});
-            }
-            statement.where = ComparisonPredicate{
-                column, comparison,
-                LiteralExpression{literal_type(token->type), token->lexeme,
-                                  token->location}};
-        } else if (token->type == TokenType::is) {
-            token = next_token();
-            if (!token) {
-                return std::unexpected(token.error());
-            }
-
-            bool negated = false;
-            if (token->type == TokenType::not_keyword) {
-                negated = true;
-                token = next_token();
-                if (!token) {
-                    return std::unexpected(token.error());
-                }
-            }
-            if (token->type != TokenType::null_literal) {
-                return std::unexpected(
-                    ParseError{ParseErrorCode::expected_null,
-                               token->location});
-            }
-            statement.where = NullPredicate{column, negated};
-        } else {
-            return std::unexpected(
-                ParseError{ParseErrorCode::expected_predicate_operator,
-                           token->location});
         }
-
-        token = next_token();
-        if (!token) {
-            return std::unexpected(token.error());
-        }
+        statement.where = std::move(*predicate);
     }
 
     if (token->type == TokenType::semicolon) {
