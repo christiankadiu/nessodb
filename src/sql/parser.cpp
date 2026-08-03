@@ -51,11 +51,9 @@ ComparisonOperator comparison_operator(TokenType type) noexcept {
 Parser::Parser(std::string_view source) noexcept : lexer_(source) {}
 
 std::expected<Statement, ParseError> Parser::parse_statement() {
-    Lexer statement_lexer = lexer_;
-    auto token = statement_lexer.next();
+    auto token = peek_token();
     if (!token) {
-        return std::unexpected(
-            ParseError{ParseErrorCode::lexical_error, token.error().location});
+        return std::unexpected(token.error());
     }
 
     if (token->type == TokenType::select) {
@@ -186,11 +184,29 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 }
 
-std::expected<Predicate, ParseError> Parser::parse_predicate() {
+std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
     auto token = next_token();
     if (!token) {
         return std::unexpected(token.error());
     }
+
+    if (token->type == TokenType::left_parenthesis) {
+        auto predicate = parse_predicate();
+        if (!predicate) {
+            return std::unexpected(predicate.error());
+        }
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::right_parenthesis) {
+            return std::unexpected(ParseError{
+                ParseErrorCode::expected_right_parenthesis, token->location});
+        }
+        return predicate;
+    }
+
     if (token->type != TokenType::identifier) {
         return std::unexpected(
             ParseError{ParseErrorCode::expected_identifier, token->location});
@@ -244,6 +260,70 @@ std::expected<Predicate, ParseError> Parser::parse_predicate() {
     return Predicate{NullPredicate{column, negated}};
 }
 
+std::expected<Predicate, ParseError> Parser::parse_conjunction() {
+    auto predicate = parse_primary_predicate();
+    if (!predicate) {
+        return std::unexpected(predicate.error());
+    }
+
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    while (token->type == TokenType::and_keyword) {
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+
+        auto right = parse_primary_predicate();
+        if (!right) {
+            return std::unexpected(right.error());
+        }
+        predicate = Predicate{std::make_unique<LogicalPredicate>(
+            LogicalPredicate{LogicalOperator::conjunction,
+                             std::move(*predicate), std::move(*right)})};
+
+        token = peek_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    return predicate;
+}
+
+std::expected<Predicate, ParseError> Parser::parse_predicate() {
+    auto predicate = parse_conjunction();
+    if (!predicate) {
+        return std::unexpected(predicate.error());
+    }
+
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    while (token->type == TokenType::or_keyword) {
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+
+        auto right = parse_conjunction();
+        if (!right) {
+            return std::unexpected(right.error());
+        }
+        predicate = Predicate{std::make_unique<LogicalPredicate>(
+            LogicalPredicate{LogicalOperator::disjunction,
+                             std::move(*predicate), std::move(*right)})};
+
+        token = peek_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    return predicate;
+}
+
 std::expected<void, ParseError> Parser::parse_select_table_tail(
     SelectStatement& statement) {
     auto token = next_token();
@@ -259,52 +339,6 @@ std::expected<void, ParseError> Parser::parse_select_table_tail(
         token = next_token();
         if (!token) {
             return std::unexpected(token.error());
-        }
-
-        while (token->type == TokenType::and_keyword) {
-            auto right = parse_predicate();
-            if (!right) {
-                return std::unexpected(right.error());
-            }
-            predicate = Predicate{std::make_unique<LogicalPredicate>(
-                LogicalPredicate{LogicalOperator::conjunction,
-                                 std::move(*predicate), std::move(*right)})};
-
-            token = next_token();
-            if (!token) {
-                return std::unexpected(token.error());
-            }
-        }
-
-        while (token->type == TokenType::or_keyword) {
-            auto right = parse_predicate();
-            if (!right) {
-                return std::unexpected(right.error());
-            }
-            token = next_token();
-            if (!token) {
-                return std::unexpected(token.error());
-            }
-
-            while (token->type == TokenType::and_keyword) {
-                auto conjunction_right = parse_predicate();
-                if (!conjunction_right) {
-                    return std::unexpected(conjunction_right.error());
-                }
-                right = Predicate{std::make_unique<LogicalPredicate>(
-                    LogicalPredicate{LogicalOperator::conjunction,
-                                     std::move(*right),
-                                     std::move(*conjunction_right)})};
-
-                token = next_token();
-                if (!token) {
-                    return std::unexpected(token.error());
-                }
-            }
-
-            predicate = Predicate{std::make_unique<LogicalPredicate>(
-                LogicalPredicate{LogicalOperator::disjunction,
-                                 std::move(*predicate), std::move(*right)})};
         }
         statement.where = std::move(*predicate);
     }
@@ -504,12 +538,29 @@ std::expected<InsertStatement, ParseError> Parser::parse_insert_statement() {
 }
 
 std::expected<Token, ParseError> Parser::next_token() {
+    if (lookahead_) {
+        Token token = *lookahead_;
+        lookahead_.reset();
+        return token;
+    }
+
     auto token = lexer_.next();
     if (!token) {
         return std::unexpected(
             ParseError{ParseErrorCode::lexical_error, token.error().location});
     }
     return *token;
+}
+
+std::expected<Token, ParseError> Parser::peek_token() {
+    if (!lookahead_) {
+        auto token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        lookahead_ = *token;
+    }
+    return *lookahead_;
 }
 
 }  // namespace minidb::sql
