@@ -154,7 +154,7 @@ std::expected<QueryResult, QueryError> Database::execute(
             if (!scanned) {
                 throw std::logic_error{"catalog and heap table state diverged"};
             }
-            stored_rows.assign(scanned->begin(), scanned->end());
+            stored_rows = std::move(*scanned);
         } else {
             auto scanned = std::get<storage::StorageManager>(storage_).scan(
                 bound->table_id);
