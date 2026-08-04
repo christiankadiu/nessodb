@@ -80,6 +80,12 @@ bool matches_predicate(const std::vector<types::Value>& values,
         return null_predicate->negated ? !is_null : is_null;
     }
 
+    if (const auto* negation =
+            std::get_if<std::unique_ptr<binder::BoundNegationPredicate>>(
+                &predicate)) {
+        return !matches_predicate(values, (*negation)->operand);
+    }
+
     const auto& logical =
         *std::get<std::unique_ptr<binder::BoundLogicalPredicate>>(predicate);
     switch (logical.operation) {

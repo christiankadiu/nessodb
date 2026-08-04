@@ -190,6 +190,15 @@ std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
         return std::unexpected(token.error());
     }
 
+    if (token->type == TokenType::not_keyword) {
+        auto operand = parse_primary_predicate();
+        if (!operand) {
+            return std::unexpected(operand.error());
+        }
+        return Predicate{std::make_unique<NegationPredicate>(
+            NegationPredicate{std::move(*operand)})};
+    }
+
     if (token->type == TokenType::left_parenthesis) {
         auto predicate = parse_predicate();
         if (!predicate) {

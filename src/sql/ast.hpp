@@ -56,10 +56,12 @@ struct NullPredicate {
 };
 
 struct LogicalPredicate;
+struct NegationPredicate;
 
 using Predicate =
     std::variant<ComparisonPredicate, NullPredicate,
-                 std::unique_ptr<LogicalPredicate>>;
+                 std::unique_ptr<LogicalPredicate>,
+                 std::unique_ptr<NegationPredicate>>;
 
 enum class LogicalOperator {
     conjunction,
@@ -70,6 +72,10 @@ struct LogicalPredicate {
     LogicalOperator operation;
     Predicate left;
     Predicate right;
+};
+
+struct NegationPredicate {
+    Predicate operand;
 };
 
 struct SelectStatement {

@@ -133,6 +133,10 @@ const sql::SourceLocation& predicate_location(
             std::get_if<sql::NullPredicate>(&predicate)) {
         return null_predicate->column.location;
     }
+    if (const auto* negation =
+            std::get_if<std::unique_ptr<sql::NegationPredicate>>(&predicate)) {
+        return predicate_location((*negation)->operand);
+    }
     return predicate_location(
         std::get<std::unique_ptr<sql::LogicalPredicate>>(predicate)->left);
 }
@@ -171,6 +175,16 @@ std::expected<BoundPredicate, BindError> bind_predicate(
         }
         return BoundPredicate{
             BoundNullPredicate{column_index, null_predicate->negated}};
+    }
+
+    if (const auto* negation =
+            std::get_if<std::unique_ptr<sql::NegationPredicate>>(&predicate)) {
+        auto operand = bind_predicate((*negation)->operand, table);
+        if (!operand) {
+            return std::unexpected(operand.error());
+        }
+        return BoundPredicate{std::make_unique<BoundNegationPredicate>(
+            BoundNegationPredicate{std::move(*operand)})};
     }
 
     const auto& logical =
