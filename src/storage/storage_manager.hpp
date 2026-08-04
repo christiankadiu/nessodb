@@ -3,6 +3,7 @@
 #include "common/table_id.hpp"
 #include "storage/access/record_id.hpp"
 #include "storage/access/row.hpp"
+#include "storage/access/stored_row.hpp"
 #include "storage/catalog/catalog_store.hpp"
 #include "storage/io/database_file.hpp"
 
@@ -53,6 +54,8 @@ public:
         common::TableId table_id, RecordId record_id);
     [[nodiscard]] std::expected<std::vector<Row>, StorageManagerError> scan(
         common::TableId table_id) const;
+    [[nodiscard]] std::expected<std::vector<StoredRow>, StorageManagerError>
+    scan_records(common::TableId table_id) const;
 
 private:
     struct State;

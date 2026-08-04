@@ -177,4 +177,19 @@ std::expected<std::vector<Row>, StorageManagerError> StorageManager::scan(
     return rows;
 }
 
+std::expected<std::vector<StoredRow>, StorageManagerError>
+StorageManager::scan_records(common::TableId table_id) const {
+    const auto table = state_->table_heaps.find(table_id.value);
+    if (!table_id.is_valid() || table == state_->table_heaps.end()) {
+        return std::unexpected(
+            StorageManagerError{StorageManagerErrorCode::table_not_found});
+    }
+
+    auto records = table->second.scan_records();
+    if (!records) {
+        return std::unexpected(StorageManagerError{records.error()});
+    }
+    return records;
+}
+
 }  // namespace minidb::storage
