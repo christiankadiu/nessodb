@@ -108,6 +108,11 @@ struct InsertStatement {
     std::vector<LiteralExpression> values;
 };
 
+struct DeleteStatement {
+    TableReference from;
+    std::optional<Predicate> where;
+};
+
 using Statement = std::variant<SelectStatement, CreateTableStatement, InsertStatement>;
 
 }  // namespace minidb::sql
