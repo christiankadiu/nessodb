@@ -49,6 +49,8 @@ public:
     create_table(catalog::TableSchema schema);
     [[nodiscard]] std::expected<RecordId, StorageManagerError> insert(
         common::TableId table_id, const Row& row);
+    [[nodiscard]] std::expected<void, StorageManagerError> erase(
+        common::TableId table_id, RecordId record_id);
     [[nodiscard]] std::expected<std::vector<Row>, StorageManagerError> scan(
         common::TableId table_id) const;
 
