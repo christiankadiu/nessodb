@@ -93,4 +93,9 @@ struct BoundInsertStatement {
     std::vector<types::Value> values;
 };
 
+struct BoundDeleteStatement {
+    common::TableId table_id;
+    std::optional<BoundPredicate> where;
+};
+
 }  // namespace minidb::binder

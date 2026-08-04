@@ -329,4 +329,23 @@ std::expected<BoundInsertStatement, BindError> bind_insert_statement(
     return bound_statement;
 }
 
+std::expected<BoundDeleteStatement, BindError> bind_delete_statement(
+    const sql::DeleteStatement& statement, const catalog::Catalog& catalog) {
+    const catalog::TableSchema* table = catalog.find_table(statement.from.name);
+    if (table == nullptr) {
+        return std::unexpected(
+            BindError{BindErrorCode::table_not_found, statement.from.location});
+    }
+
+    BoundDeleteStatement bound_statement{table->id, std::nullopt};
+    if (statement.where) {
+        auto predicate = bind_predicate(*statement.where, *table);
+        if (!predicate) {
+            return std::unexpected(predicate.error());
+        }
+        bound_statement.where = std::move(*predicate);
+    }
+    return bound_statement;
+}
+
 }  // namespace minidb::binder
