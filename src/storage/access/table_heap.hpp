@@ -4,6 +4,7 @@
 #include "common/page_id.hpp"
 #include "storage/access/record_id.hpp"
 #include "storage/access/row.hpp"
+#include "storage/access/stored_row.hpp"
 #include "storage/buffer/buffer_pool.hpp"
 #include "storage/page/slotted_page.hpp"
 #include "storage/record/record_codec.hpp"
@@ -40,6 +41,8 @@ public:
     [[nodiscard]] std::expected<void, TableHeapError> erase(
         RecordId record_id);
     [[nodiscard]] std::expected<std::vector<Row>, TableHeapError> scan() const;
+    [[nodiscard]] std::expected<std::vector<StoredRow>, TableHeapError>
+    scan_records() const;
 
 private:
     TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,

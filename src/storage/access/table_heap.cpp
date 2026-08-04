@@ -180,8 +180,9 @@ std::expected<void, TableHeapError> TableHeap::erase(RecordId record_id) {
     }
 }
 
-std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
-    std::vector<Row> rows;
+std::expected<std::vector<StoredRow>, TableHeapError>
+TableHeap::scan_records() const {
+    std::vector<StoredRow> rows;
     std::unordered_set<std::uint64_t> visited_pages;
     common::PageId current_page_id = first_page_id_;
 
@@ -215,7 +216,8 @@ std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
                 if (!row) {
                     return std::unexpected(TableHeapError{row.error()});
                 }
-                rows.push_back(std::move(*row));
+                rows.push_back(StoredRow{
+                    RecordId{current_page_id, SlotId{slot}}, std::move(*row)});
             }
             next_page_id = slotted_page->next_page_id();
         }
@@ -225,6 +227,20 @@ std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
         }
         current_page_id = *next_page_id;
     }
+}
+
+std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
+    auto records = scan_records();
+    if (!records) {
+        return std::unexpected(records.error());
+    }
+
+    std::vector<Row> rows;
+    rows.reserve(records->size());
+    for (auto& record : *records) {
+        rows.push_back(std::move(record.row));
+    }
+    return rows;
 }
 
 TableHeap::TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
