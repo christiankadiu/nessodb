@@ -113,6 +113,8 @@ struct DeleteStatement {
     std::optional<Predicate> where;
 };
 
-using Statement = std::variant<SelectStatement, CreateTableStatement, InsertStatement>;
+using Statement =
+    std::variant<SelectStatement, CreateTableStatement, InsertStatement,
+                 DeleteStatement>;
 
 }  // namespace minidb::sql

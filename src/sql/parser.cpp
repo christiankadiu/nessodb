@@ -77,6 +77,13 @@ std::expected<Statement, ParseError> Parser::parse_statement() {
         }
         return Statement{std::move(*statement)};
     }
+    if (token->type == TokenType::delete_keyword) {
+        auto statement = parse_delete_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{std::move(*statement)};
+    }
     return std::unexpected(ParseError{ParseErrorCode::expected_statement, token->location});
 }
 
