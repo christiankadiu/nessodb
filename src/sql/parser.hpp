@@ -28,6 +28,7 @@ enum class ParseErrorCode {
     expected_column_type,
     expected_comma_or_right_parenthesis,
     expected_insert,
+    expected_delete,
     expected_into,
     expected_values,
 };
@@ -45,6 +46,7 @@ public:
     [[nodiscard]] std::expected<SelectStatement, ParseError> parse_select_statement();
     [[nodiscard]] std::expected<CreateTableStatement, ParseError> parse_create_table_statement();
     [[nodiscard]] std::expected<InsertStatement, ParseError> parse_insert_statement();
+    [[nodiscard]] std::expected<DeleteStatement, ParseError> parse_delete_statement();
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
@@ -52,8 +54,8 @@ private:
     [[nodiscard]] std::expected<Predicate, ParseError> parse_predicate();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();
-    [[nodiscard]] std::expected<void, ParseError> parse_select_table_tail(
-        SelectStatement& statement);
+    [[nodiscard]] std::expected<void, ParseError> parse_table_statement_tail(
+        std::optional<Predicate>& where);
 
     Lexer lexer_;
     std::optional<Token> lookahead_;

@@ -275,4 +275,53 @@ std::expected<QueryResult, QueryError> Database::execute(
     return QueryResult{{}, 1};
 }
 
+std::expected<QueryResult, QueryError> Database::execute(
+    const sql::DeleteStatement& statement) {
+    auto bound = binder::bind_delete_statement(statement, catalog_);
+    if (!bound) {
+        return std::unexpected(QueryError{bound.error()});
+    }
+
+    QueryResult result;
+    if (auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
+        auto records = heap->scan_records(bound->table_id);
+        if (!records) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
+
+        for (const auto& record : *records) {
+            if (bound->where &&
+                !matches_predicate(record.row.values, *bound->where)) {
+                continue;
+            }
+            auto erased = heap->erase(bound->table_id, record.row_id);
+            if (!erased) {
+                throw std::logic_error{"heap row state diverged during deletion"};
+            }
+            ++result.rows_affected;
+        }
+        return result;
+    }
+
+    auto& storage = std::get<storage::StorageManager>(storage_);
+    auto records = storage.scan_records(bound->table_id);
+    if (!records) {
+        return std::unexpected(
+            QueryError{StorageError{std::move(records.error())}});
+    }
+    for (const auto& record : *records) {
+        if (bound->where &&
+            !matches_predicate(record.row.values, *bound->where)) {
+            continue;
+        }
+        auto erased = storage.erase(bound->table_id, record.record_id);
+        if (!erased) {
+            return std::unexpected(
+                QueryError{StorageError{std::move(erased.error())}});
+        }
+        ++result.rows_affected;
+    }
+    return result;
+}
+
 }  // namespace minidb::engine
