@@ -132,6 +132,54 @@ std::expected<RecordId, TableHeapError> TableHeap::insert(const Row& row) {
     return RecordId{last_page_id_, *slot_id};
 }
 
+std::expected<void, TableHeapError> TableHeap::erase(RecordId record_id) {
+    if (!record_id.is_valid()) {
+        return std::unexpected(
+            TableHeapError{TableHeapErrorCode::invalid_record_id});
+    }
+
+    std::unordered_set<std::uint64_t> visited_pages;
+    common::PageId current_page_id = first_page_id_;
+    while (true) {
+        if (!visited_pages.insert(current_page_id.value).second) {
+            return std::unexpected(
+                TableHeapError{TableHeapErrorCode::page_chain_cycle});
+        }
+
+        if (current_page_id == record_id.page_id) {
+            auto page = buffer_pool_.fetch_heap_page_for_write(current_page_id);
+            if (!page) {
+                return std::unexpected(TableHeapError{page.error()});
+            }
+            auto slotted_page = SlottedPage::open(**page);
+            if (!slotted_page) {
+                return std::unexpected(TableHeapError{slotted_page.error()});
+            }
+            auto erased = slotted_page->erase(record_id.slot_id);
+            if (!erased) {
+                return std::unexpected(TableHeapError{erased.error()});
+            }
+            return {};
+        }
+
+        auto page = buffer_pool_.fetch_heap_page(current_page_id);
+        if (!page) {
+            return std::unexpected(TableHeapError{page.error()});
+        }
+        PageBuffer page_copy = **page;
+        auto slotted_page = SlottedPage::open(page_copy);
+        if (!slotted_page) {
+            return std::unexpected(TableHeapError{slotted_page.error()});
+        }
+        const auto next_page_id = slotted_page->next_page_id();
+        if (!next_page_id) {
+            return std::unexpected(
+                TableHeapError{TableHeapErrorCode::record_page_not_found});
+        }
+        current_page_id = *next_page_id;
+    }
+}
+
 std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
     std::vector<Row> rows;
     std::unordered_set<std::uint64_t> visited_pages;
@@ -158,6 +206,9 @@ std::expected<std::vector<Row>, TableHeapError> TableHeap::scan() const {
             for (std::uint16_t slot = 0; slot < slotted_page->slot_count(); ++slot) {
                 auto record = slotted_page->read(SlotId{slot});
                 if (!record) {
+                    if (record.error() == SlottedPageError::deleted_slot) {
+                        continue;
+                    }
                     return std::unexpected(TableHeapError{record.error()});
                 }
                 auto row = decode_record(*record, schema_);

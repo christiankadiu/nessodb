@@ -19,6 +19,8 @@ enum class TableHeapErrorCode {
     tail_page_already_linked,
     invalid_first_page_id,
     page_chain_cycle,
+    invalid_record_id,
+    record_page_not_found,
 };
 
 using TableHeapError =
@@ -35,6 +37,8 @@ public:
 
     [[nodiscard]] common::PageId first_page_id() const noexcept;
     [[nodiscard]] std::expected<RecordId, TableHeapError> insert(const Row& row);
+    [[nodiscard]] std::expected<void, TableHeapError> erase(
+        RecordId record_id);
     [[nodiscard]] std::expected<std::vector<Row>, TableHeapError> scan() const;
 
 private:
