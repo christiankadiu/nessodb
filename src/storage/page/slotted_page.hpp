@@ -39,6 +39,7 @@ enum class SlottedPageError {
     empty_record,
     page_full,
     invalid_slot,
+    deleted_slot,
 };
 
 class SlottedPage {
@@ -58,6 +59,8 @@ public:
         std::span<const std::byte> record) noexcept;
     [[nodiscard]] std::expected<std::span<const std::byte>, SlottedPageError> read(
         SlotId slot_id) const noexcept;
+    [[nodiscard]] std::expected<void, SlottedPageError> erase(
+        SlotId slot_id) noexcept;
 
 private:
     SlottedPage(std::span<std::byte> page, PageHeader header) noexcept;

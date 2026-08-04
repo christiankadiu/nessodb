@@ -4,6 +4,7 @@
 #include "common/page_id.hpp"
 #include "storage/access/record_id.hpp"
 #include "storage/access/row.hpp"
+#include "storage/access/stored_row.hpp"
 #include "storage/buffer/buffer_pool.hpp"
 #include "storage/page/slotted_page.hpp"
 #include "storage/record/record_codec.hpp"
@@ -19,6 +20,8 @@ enum class TableHeapErrorCode {
     tail_page_already_linked,
     invalid_first_page_id,
     page_chain_cycle,
+    invalid_record_id,
+    record_page_not_found,
 };
 
 using TableHeapError =
@@ -35,7 +38,11 @@ public:
 
     [[nodiscard]] common::PageId first_page_id() const noexcept;
     [[nodiscard]] std::expected<RecordId, TableHeapError> insert(const Row& row);
+    [[nodiscard]] std::expected<void, TableHeapError> erase(
+        RecordId record_id);
     [[nodiscard]] std::expected<std::vector<Row>, TableHeapError> scan() const;
+    [[nodiscard]] std::expected<std::vector<StoredRow>, TableHeapError>
+    scan_records() const;
 
 private:
     TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
