@@ -141,6 +141,14 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::and_keyword;
     } else if (equals_case_insensitive(token.lexeme, "or")) {
         token.type = TokenType::or_keyword;
+    } else if (equals_case_insensitive(token.lexeme, "order")) {
+        token.type = TokenType::order;
+    } else if (equals_case_insensitive(token.lexeme, "by")) {
+        token.type = TokenType::by;
+    } else if (equals_case_insensitive(token.lexeme, "asc")) {
+        token.type = TokenType::asc;
+    } else if (equals_case_insensitive(token.lexeme, "desc")) {
+        token.type = TokenType::desc;
     } else if (equals_case_insensitive(token.lexeme, "null")) {
         token.type = TokenType::null_literal;
     } else if (equals_case_insensitive(token.lexeme, "create")) {

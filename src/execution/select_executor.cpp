@@ -2,6 +2,7 @@
 
 #include "execution/filter_operator.hpp"
 #include "execution/projection_operator.hpp"
+#include "execution/sort_operator.hpp"
 #include "execution/vector_scan_operator.hpp"
 
 #include <memory>
@@ -19,6 +20,19 @@ std::vector<storage::Row> execute_select(
     if (statement.where) {
         source = std::make_unique<FilterOperator>(std::move(source),
                                                   *statement.where);
+    }
+    if (!statement.order_by.empty()) {
+        std::vector<SortKey> keys;
+        keys.reserve(statement.order_by.size());
+        for (const auto& term : statement.order_by) {
+            const auto direction =
+                term.direction == binder::BoundOrderDirection::ascending
+                    ? SortDirection::ascending
+                    : SortDirection::descending;
+            keys.push_back(SortKey{term.column_index, direction});
+        }
+        source = std::make_unique<SortOperator>(std::move(source),
+                                                std::move(keys));
     }
     if (!statement.expressions.empty()) {
         source = std::make_unique<ProjectionOperator>(

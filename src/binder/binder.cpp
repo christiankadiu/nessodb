@@ -220,9 +220,6 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         if (table == nullptr) {
             return std::unexpected(BindError{BindErrorCode::table_not_found, {}});
         }
-        BoundSelectStatement bound_statement;
-        bound_statement.table_id = table->id;
-        return bound_statement;
     }
 
     BoundSelectStatement bound_statement;
@@ -272,6 +269,28 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
             return std::unexpected(predicate.error());
         }
         bound_statement.where = std::move(*predicate);
+    }
+
+    if (!statement.order_by.empty() && table == nullptr) {
+        return std::unexpected(
+            BindError{BindErrorCode::column_requires_table,
+                      statement.order_by.front().column.location});
+    }
+    bound_statement.order_by.reserve(statement.order_by.size());
+    for (const auto& term : statement.order_by) {
+        const std::size_t column_index =
+            find_column_index(*table, term.column.name);
+        if (column_index == table->columns.size()) {
+            return std::unexpected(
+                BindError{BindErrorCode::column_not_found,
+                          term.column.location});
+        }
+        const auto direction =
+            term.direction == sql::OrderDirection::ascending
+                ? BoundOrderDirection::ascending
+                : BoundOrderDirection::descending;
+        bound_statement.order_by.push_back(
+            BoundOrderByTerm{column_index, direction});
     }
 
     return bound_statement;

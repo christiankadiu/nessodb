@@ -78,11 +78,22 @@ struct NegationPredicate {
     Predicate operand;
 };
 
+enum class OrderDirection {
+    ascending,
+    descending,
+};
+
+struct OrderByTerm {
+    ColumnReferenceExpression column;
+    OrderDirection direction;
+};
+
 struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
     std::optional<TableReference> from;
     std::optional<Predicate> where;
+    std::vector<OrderByTerm> order_by;
 };
 
 enum class ColumnType {

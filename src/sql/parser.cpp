@@ -127,7 +127,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         }
         statement.from = TableReference{token->lexeme, token->location};
 
-        auto tail = parse_table_statement_tail(statement.where);
+        auto tail = parse_table_statement_tail(statement.where,
+                                               &statement.order_by);
         if (!tail) {
             return std::unexpected(tail.error());
         }
@@ -171,7 +172,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             }
             statement.from = TableReference{token->lexeme, token->location};
 
-            auto tail = parse_table_statement_tail(statement.where);
+            auto tail = parse_table_statement_tail(statement.where,
+                                                   &statement.order_by);
             if (!tail) {
                 return std::unexpected(tail.error());
             }
@@ -348,7 +350,7 @@ std::expected<Predicate, ParseError> Parser::parse_predicate() {
 }
 
 std::expected<void, ParseError> Parser::parse_table_statement_tail(
-    std::optional<Predicate>& where) {
+    std::optional<Predicate>& where, std::vector<OrderByTerm>* order_by) {
     auto token = next_token();
     if (!token) {
         return std::unexpected(token.error());
@@ -364,6 +366,59 @@ std::expected<void, ParseError> Parser::parse_table_statement_tail(
             return std::unexpected(token.error());
         }
         where = std::move(*predicate);
+    }
+
+    if (token->type == TokenType::order && order_by != nullptr) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::by) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_by, token->location});
+        }
+
+        token = next_token();
+        while (true) {
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type != TokenType::identifier) {
+                return std::unexpected(ParseError{
+                    ParseErrorCode::expected_identifier, token->location});
+            }
+
+            OrderByTerm term{
+                ColumnReferenceExpression{token->lexeme, token->location},
+                OrderDirection::ascending};
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type == TokenType::asc ||
+                token->type == TokenType::desc) {
+                term.direction = token->type == TokenType::asc
+                                     ? OrderDirection::ascending
+                                     : OrderDirection::descending;
+                token = next_token();
+                if (!token) {
+                    return std::unexpected(token.error());
+                }
+            }
+            order_by->push_back(term);
+
+            if (token->type == TokenType::comma) {
+                token = next_token();
+                continue;
+            }
+            if (token->type != TokenType::semicolon &&
+                token->type != TokenType::end_of_input) {
+                return std::unexpected(ParseError{
+                    ParseErrorCode::expected_comma_or_end,
+                    token->location});
+            }
+            break;
+        }
     }
 
     if (token->type == TokenType::semicolon) {
