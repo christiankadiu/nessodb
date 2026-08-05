@@ -86,6 +86,7 @@ struct BoundSelectStatement {
     std::optional<BoundPredicate> where;
     std::vector<BoundOrderByTerm> order_by;
     std::optional<std::size_t> limit;
+    std::optional<std::size_t> offset;
 };
 
 struct BoundColumnDefinition {

@@ -32,20 +32,20 @@ std::expected<types::Value, BindError> bind_integer(const sql::LiteralExpression
     return types::Value{value};
 }
 
-std::expected<std::size_t, BindError> bind_limit(
-    const sql::LimitClause& clause) {
+std::expected<std::size_t, BindError> bind_row_count(
+    std::string_view count, sql::SourceLocation location) {
     std::size_t value{};
-    const char* const begin = clause.count.data();
-    const char* const end = begin + clause.count.size();
+    const char* const begin = count.data();
+    const char* const end = begin + count.size();
     const auto result = std::from_chars(begin, end, value);
 
     if (result.ec == std::errc::result_out_of_range) {
         return std::unexpected(
-            BindError{BindErrorCode::integer_out_of_range, clause.location});
+            BindError{BindErrorCode::integer_out_of_range, location});
     }
     if (result.ec != std::errc{} || result.ptr != end) {
         return std::unexpected(BindError{
-            BindErrorCode::invalid_integer_literal, clause.location});
+            BindErrorCode::invalid_integer_literal, location});
     }
     return value;
 }
@@ -312,11 +312,20 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
 
     if (statement.limit) {
-        auto limit = bind_limit(*statement.limit);
+        auto limit = bind_row_count(statement.limit->count,
+                                    statement.limit->location);
         if (!limit) {
             return std::unexpected(limit.error());
         }
         bound_statement.limit = *limit;
+    }
+    if (statement.offset) {
+        auto offset = bind_row_count(statement.offset->count,
+                                     statement.offset->location);
+        if (!offset) {
+            return std::unexpected(offset.error());
+        }
+        bound_statement.offset = *offset;
     }
 
     return bound_statement;

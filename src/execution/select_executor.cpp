@@ -6,6 +6,7 @@
 #include "execution/sort_operator.hpp"
 #include "execution/vector_scan_operator.hpp"
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -39,9 +40,12 @@ std::expected<std::vector<storage::Row>, OperatorError> execute_select(
         source = std::make_unique<ProjectionOperator>(
             std::move(source), statement.expressions);
     }
-    if (statement.limit) {
-        source = std::make_unique<LimitOperator>(std::move(source),
-                                                 *statement.limit);
+    if (statement.limit || statement.offset) {
+        source = std::make_unique<LimitOperator>(
+            std::move(source),
+            statement.limit.value_or(
+                std::numeric_limits<std::size_t>::max()),
+            statement.offset.value_or(0));
     }
 
     while (true) {

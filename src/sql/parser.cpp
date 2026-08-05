@@ -128,7 +128,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         statement.from = TableReference{token->lexeme, token->location};
 
         auto tail = parse_table_statement_tail(
-            statement.where, &statement.order_by, &statement.limit);
+            statement.where, &statement.order_by, &statement.limit,
+            &statement.offset);
         if (!tail) {
             return std::unexpected(tail.error());
         }
@@ -173,7 +174,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             statement.from = TableReference{token->lexeme, token->location};
 
             auto tail = parse_table_statement_tail(
-                statement.where, &statement.order_by, &statement.limit);
+                statement.where, &statement.order_by, &statement.limit,
+                &statement.offset);
             if (!tail) {
                 return std::unexpected(tail.error());
             }
@@ -185,6 +187,17 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
                 return std::unexpected(limit.error());
             }
             statement.limit = *limit;
+            delimiter = next_token();
+            if (!delimiter) {
+                return std::unexpected(delimiter.error());
+            }
+        }
+        if (delimiter->type == TokenType::offset) {
+            auto offset = parse_offset_clause();
+            if (!offset) {
+                return std::unexpected(offset.error());
+            }
+            statement.offset = *offset;
             delimiter = next_token();
             if (!delimiter) {
                 return std::unexpected(delimiter.error());
@@ -372,9 +385,22 @@ std::expected<LimitClause, ParseError> Parser::parse_limit_clause() {
     return LimitClause{token->lexeme, token->location};
 }
 
+std::expected<OffsetClause, ParseError> Parser::parse_offset_clause() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::integer_literal) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_integer_literal, token->location});
+    }
+    return OffsetClause{token->lexeme, token->location};
+}
+
 std::expected<void, ParseError> Parser::parse_table_statement_tail(
     std::optional<Predicate>& where, std::vector<OrderByTerm>* order_by,
-    std::optional<LimitClause>* limit) {
+    std::optional<LimitClause>* limit,
+    std::optional<OffsetClause>* offset) {
     auto token = next_token();
     if (!token) {
         return std::unexpected(token.error());
@@ -437,7 +463,8 @@ std::expected<void, ParseError> Parser::parse_table_statement_tail(
             }
             if (token->type != TokenType::semicolon &&
                 token->type != TokenType::end_of_input &&
-                token->type != TokenType::limit) {
+                token->type != TokenType::limit &&
+                token->type != TokenType::offset) {
                 return std::unexpected(ParseError{
                     ParseErrorCode::expected_comma_or_end,
                     token->location});
@@ -452,6 +479,18 @@ std::expected<void, ParseError> Parser::parse_table_statement_tail(
             return std::unexpected(clause.error());
         }
         *limit = *clause;
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+
+    if (token->type == TokenType::offset && offset != nullptr) {
+        auto clause = parse_offset_clause();
+        if (!clause) {
+            return std::unexpected(clause.error());
+        }
+        *offset = *clause;
         token = next_token();
         if (!token) {
             return std::unexpected(token.error());

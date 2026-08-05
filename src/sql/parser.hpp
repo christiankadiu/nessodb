@@ -63,10 +63,12 @@ private:
     [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();
     [[nodiscard]] std::expected<LimitClause, ParseError> parse_limit_clause();
+    [[nodiscard]] std::expected<OffsetClause, ParseError> parse_offset_clause();
     [[nodiscard]] std::expected<void, ParseError> parse_table_statement_tail(
         std::optional<Predicate>& where,
         std::vector<OrderByTerm>* order_by = nullptr,
-        std::optional<LimitClause>* limit = nullptr);
+        std::optional<LimitClause>* limit = nullptr,
+        std::optional<OffsetClause>* offset = nullptr);
 
     Lexer lexer_;
     std::optional<Token> lookahead_;

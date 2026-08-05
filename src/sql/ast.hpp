@@ -93,6 +93,11 @@ struct LimitClause {
     SourceLocation location;
 };
 
+struct OffsetClause {
+    std::string_view count;
+    SourceLocation location;
+};
+
 struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
@@ -100,6 +105,7 @@ struct SelectStatement {
     std::optional<Predicate> where;
     std::vector<OrderByTerm> order_by;
     std::optional<LimitClause> limit;
+    std::optional<OffsetClause> offset;
 };
 
 enum class ColumnType {
