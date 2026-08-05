@@ -98,4 +98,15 @@ struct BoundDeleteStatement {
     std::optional<BoundPredicate> where;
 };
 
+struct BoundUpdateAssignment {
+    std::size_t column_index;
+    types::Value value;
+};
+
+struct BoundUpdateStatement {
+    common::TableId table_id;
+    std::vector<BoundUpdateAssignment> assignments;
+    std::optional<BoundPredicate> where;
+};
+
 }  // namespace minidb::binder

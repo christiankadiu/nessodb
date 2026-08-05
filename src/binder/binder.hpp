@@ -38,5 +38,7 @@ struct BindError {
     const sql::InsertStatement& statement, const catalog::Catalog& catalog);
 [[nodiscard]] std::expected<BoundDeleteStatement, BindError> bind_delete_statement(
     const sql::DeleteStatement& statement, const catalog::Catalog& catalog);
+[[nodiscard]] std::expected<BoundUpdateStatement, BindError> bind_update_statement(
+    const sql::UpdateStatement& statement, const catalog::Catalog& catalog);
 
 }  // namespace minidb::binder
