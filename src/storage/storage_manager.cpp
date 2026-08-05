@@ -143,6 +143,25 @@ std::expected<RecordId, StorageManagerError> StorageManager::insert(
     return *record_id;
 }
 
+std::expected<void, StorageManagerError> StorageManager::update(
+    common::TableId table_id, RecordId record_id, const Row& row) {
+    const auto table = state_->table_heaps.find(table_id.value);
+    if (!table_id.is_valid() || table == state_->table_heaps.end()) {
+        return std::unexpected(
+            StorageManagerError{StorageManagerErrorCode::table_not_found});
+    }
+
+    auto updated = table->second.update(record_id, row);
+    if (!updated) {
+        return std::unexpected(StorageManagerError{updated.error()});
+    }
+    auto flushed = state_->buffer_pool.flush();
+    if (!flushed) {
+        return std::unexpected(StorageManagerError{flushed.error()});
+    }
+    return {};
+}
+
 std::expected<void, StorageManagerError> StorageManager::erase(
     common::TableId table_id, RecordId record_id) {
     const auto table = state_->table_heaps.find(table_id.value);

@@ -59,6 +59,8 @@ public:
         std::span<const std::byte> record) noexcept;
     [[nodiscard]] std::expected<std::span<const std::byte>, SlottedPageError> read(
         SlotId slot_id) const noexcept;
+    [[nodiscard]] std::expected<void, SlottedPageError> update(
+        SlotId slot_id, std::span<const std::byte> record) noexcept;
     [[nodiscard]] std::expected<void, SlottedPageError> erase(
         SlotId slot_id) noexcept;
 
