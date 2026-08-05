@@ -97,9 +97,13 @@ std::expected<QueryResult, QueryError> Database::execute(
 
     auto selected_rows =
         execution::execute_select(*bound, std::move(stored_rows));
+    if (!selected_rows) {
+        return std::unexpected(QueryError{ExecutionError{
+            ExecutionErrorCode::memory_limit_exceeded, {}}});
+    }
     QueryResult result;
-    result.rows.reserve(selected_rows.size());
-    for (auto& row : selected_rows) {
+    result.rows.reserve(selected_rows->size());
+    for (auto& row : *selected_rows) {
         result.rows.push_back(ResultRow{std::move(row.values)});
     }
     return result;

@@ -19,15 +19,18 @@ ProjectionOperator::ProjectionOperator(
     }
 }
 
-std::optional<RowBatch> ProjectionOperator::next() {
+OperatorResult ProjectionOperator::next() {
     auto input = child_->next();
     if (!input) {
-        return std::nullopt;
+        return std::unexpected(input.error());
+    }
+    if (!*input) {
+        return std::optional<RowBatch>{};
     }
 
     RowBatch output;
-    output.rows.reserve(input->rows.size());
-    for (const auto& input_row : input->rows) {
+    output.rows.reserve((*input)->rows.size());
+    for (const auto& input_row : (*input)->rows) {
         storage::Row output_row;
         output_row.values.reserve(expressions_.size());
         for (const auto& expression : expressions_) {
@@ -48,7 +51,7 @@ std::optional<RowBatch> ProjectionOperator::next() {
         }
         output.rows.push_back(std::move(output_row));
     }
-    return output;
+    return std::optional<RowBatch>{std::move(output)};
 }
 
 }  // namespace minidb::execution

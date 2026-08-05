@@ -13,7 +13,7 @@ public:
     FilterOperator(std::unique_ptr<RowOperator> child,
                    const binder::BoundPredicate& predicate);
 
-    [[nodiscard]] std::optional<RowBatch> next() override;
+    [[nodiscard]] OperatorResult next() override;
 
 private:
     std::unique_ptr<RowOperator> child_;

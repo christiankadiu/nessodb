@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -42,14 +43,39 @@ int compare_values(const types::Value& left, const types::Value& right) {
     return left_text > right_text ? 1 : 0;
 }
 
+std::size_t estimated_row_size(const storage::Row& row) noexcept {
+    std::size_t size = sizeof(storage::Row);
+    const auto add = [&size](std::size_t amount) {
+        if (amount > std::numeric_limits<std::size_t>::max() - size) {
+            size = std::numeric_limits<std::size_t>::max();
+        } else {
+            size += amount;
+        }
+    };
+    if (row.values.size() >
+        std::numeric_limits<std::size_t>::max() / sizeof(types::Value)) {
+        size = std::numeric_limits<std::size_t>::max();
+    } else {
+        add(row.values.size() * sizeof(types::Value));
+    }
+    for (const auto& value : row.values) {
+        if (const auto* text = std::get_if<std::string>(&value)) {
+            add(text->size());
+        }
+    }
+    return size;
+}
+
 }  // namespace
 
 SortOperator::SortOperator(std::unique_ptr<RowOperator> child,
                            std::vector<SortKey> keys,
-                           std::size_t batch_size)
+                           std::size_t batch_size,
+                           std::size_t memory_limit)
     : child_(std::move(child)),
       keys_(std::move(keys)),
-      batch_size_(batch_size) {
+      batch_size_(batch_size),
+      memory_limit_(memory_limit) {
     if (!child_) {
         throw std::invalid_argument{"sort operator requires a child"};
     }
@@ -61,29 +87,50 @@ SortOperator::SortOperator(std::unique_ptr<RowOperator> child,
     }
 }
 
-std::optional<RowBatch> SortOperator::next() {
+OperatorResult SortOperator::next() {
     if (!materialized_) {
-        materialize();
+        auto materialized = materialize();
+        if (!materialized) {
+            return std::unexpected(materialized.error());
+        }
     }
     if (offset_ == rows_.size()) {
-        return std::nullopt;
+        return std::optional<RowBatch>{};
     }
 
-    const std::size_t end = std::min(offset_ + batch_size_, rows_.size());
+    const std::size_t end =
+        offset_ + std::min(batch_size_, rows_.size() - offset_);
     RowBatch batch;
     batch.rows.reserve(end - offset_);
     while (offset_ < end) {
         batch.rows.push_back(std::move(rows_[offset_]));
         ++offset_;
     }
-    return batch;
+    return std::optional<RowBatch>{std::move(batch)};
 }
 
-void SortOperator::materialize() {
-    while (auto batch = child_->next()) {
+std::expected<void, OperatorError> SortOperator::materialize() {
+    std::size_t memory_used = 0;
+    while (true) {
+        auto batch = child_->next();
+        if (!batch) {
+            return std::unexpected(batch.error());
+        }
+        if (!*batch) {
+            break;
+        }
+        for (const auto& row : (*batch)->rows) {
+            const std::size_t row_size = estimated_row_size(row);
+            if (row_size > memory_limit_ ||
+                memory_used > memory_limit_ - row_size) {
+                return std::unexpected(
+                    OperatorError{OperatorErrorCode::memory_limit_exceeded});
+            }
+            memory_used += row_size;
+        }
         rows_.insert(rows_.end(),
-                     std::make_move_iterator(batch->rows.begin()),
-                     std::make_move_iterator(batch->rows.end()));
+                     std::make_move_iterator((*batch)->rows.begin()),
+                     std::make_move_iterator((*batch)->rows.end()));
     }
 
     std::stable_sort(rows_.begin(), rows_.end(),
@@ -108,6 +155,7 @@ void SortOperator::materialize() {
                          return false;
                      });
     materialized_ = true;
+    return {};
 }
 
 }  // namespace minidb::execution

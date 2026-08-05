@@ -15,20 +15,27 @@ FilterOperator::FilterOperator(std::unique_ptr<RowOperator> child,
     }
 }
 
-std::optional<RowBatch> FilterOperator::next() {
-    while (auto input = child_->next()) {
+OperatorResult FilterOperator::next() {
+    while (true) {
+        auto input = child_->next();
+        if (!input) {
+            return std::unexpected(input.error());
+        }
+        if (!*input) {
+            return std::optional<RowBatch>{};
+        }
+
         RowBatch output;
-        output.rows.reserve(input->rows.size());
-        for (auto& row : input->rows) {
+        output.rows.reserve((*input)->rows.size());
+        for (auto& row : (*input)->rows) {
             if (matches_predicate(row.values, predicate_)) {
                 output.rows.push_back(std::move(row));
             }
         }
         if (!output.rows.empty()) {
-            return output;
+            return std::optional<RowBatch>{std::move(output)};
         }
     }
-    return std::nullopt;
 }
 
 }  // namespace minidb::execution
