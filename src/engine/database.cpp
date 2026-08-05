@@ -2,6 +2,7 @@
 
 #include "binder/binder.hpp"
 #include "execution/predicate_evaluator.hpp"
+#include "execution/select_executor.hpp"
 #include "sql/parser.hpp"
 
 #include <stdexcept>
@@ -73,8 +74,8 @@ std::expected<QueryResult, QueryError> Database::execute(
         return std::unexpected(QueryError{bound.error()});
     }
 
+    std::vector<storage::Row> stored_rows;
     if (bound->table_id.is_valid()) {
-        std::vector<storage::Row> stored_rows;
         if (const auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
             auto scanned = heap->scan(bound->table_id);
             if (!scanned) {
@@ -90,53 +91,17 @@ std::expected<QueryResult, QueryError> Database::execute(
             }
             stored_rows = std::move(*scanned);
         }
-
-        QueryResult result;
-        result.rows.reserve(stored_rows.size());
-        for (auto& stored_row : stored_rows) {
-            if (bound->where &&
-                !execution::matches_predicate(stored_row.values,
-                                              *bound->where)) {
-                continue;
-            }
-
-            if (bound->expressions.empty()) {
-                result.rows.push_back(ResultRow{std::move(stored_row.values)});
-                continue;
-            }
-
-            ResultRow projected_row;
-            projected_row.values.reserve(bound->expressions.size());
-            for (const auto& expression : bound->expressions) {
-                if (const auto* literal =
-                        std::get_if<binder::BoundLiteralExpression>(&expression)) {
-                    projected_row.values.push_back(literal->value);
-                    continue;
-                }
-
-                const auto column_index =
-                    std::get<binder::BoundColumnReferenceExpression>(expression)
-                        .column_index;
-                if (column_index >= stored_row.values.size()) {
-                    throw std::logic_error{
-                        "table schema and stored row state diverged"};
-                }
-                projected_row.values.push_back(
-                    stored_row.values[column_index]);
-            }
-            result.rows.push_back(std::move(projected_row));
-        }
-        return result;
+    } else {
+        stored_rows.emplace_back();
     }
 
-    ResultRow row;
-    row.values.reserve(bound->expressions.size());
-    for (const auto& expression : bound->expressions) {
-        row.values.push_back(
-            std::get<binder::BoundLiteralExpression>(expression).value);
-    }
+    auto selected_rows =
+        execution::execute_select(*bound, std::move(stored_rows));
     QueryResult result;
-    result.rows.push_back(std::move(row));
+    result.rows.reserve(selected_rows.size());
+    for (auto& row : selected_rows) {
+        result.rows.push_back(ResultRow{std::move(row.values)});
+    }
     return result;
 }
 
