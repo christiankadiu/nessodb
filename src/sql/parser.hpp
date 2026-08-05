@@ -29,6 +29,10 @@ enum class ParseErrorCode {
     expected_comma_or_right_parenthesis,
     expected_insert,
     expected_delete,
+    expected_update,
+    expected_set,
+    expected_equal,
+    expected_comma_where_or_end,
     expected_into,
     expected_values,
 };
@@ -47,6 +51,7 @@ public:
     [[nodiscard]] std::expected<CreateTableStatement, ParseError> parse_create_table_statement();
     [[nodiscard]] std::expected<InsertStatement, ParseError> parse_insert_statement();
     [[nodiscard]] std::expected<DeleteStatement, ParseError> parse_delete_statement();
+    [[nodiscard]] std::expected<UpdateStatement, ParseError> parse_update_statement();
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();

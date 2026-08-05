@@ -99,6 +99,18 @@ bool matches_predicate(const std::vector<types::Value>& values,
     return false;
 }
 
+void apply_assignments(
+    storage::Row& row,
+    const std::vector<binder::BoundUpdateAssignment>& assignments) {
+    for (const auto& assignment : assignments) {
+        if (assignment.column_index >= row.values.size()) {
+            throw std::logic_error{
+                "table schema and stored row state diverged"};
+        }
+        row.values[assignment.column_index] = assignment.value;
+    }
+}
+
 }  // namespace
 
 Database::Database(catalog::Catalog catalog, storage::StorageManager storage)
@@ -318,6 +330,60 @@ std::expected<QueryResult, QueryError> Database::execute(
         if (!erased) {
             return std::unexpected(
                 QueryError{StorageError{std::move(erased.error())}});
+        }
+        ++result.rows_affected;
+    }
+    return result;
+}
+
+std::expected<QueryResult, QueryError> Database::execute(
+    const sql::UpdateStatement& statement) {
+    auto bound = binder::bind_update_statement(statement, catalog_);
+    if (!bound) {
+        return std::unexpected(QueryError{bound.error()});
+    }
+
+    QueryResult result;
+    if (auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
+        auto records = heap->scan_records(bound->table_id);
+        if (!records) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
+
+        for (auto& record : *records) {
+            if (bound->where &&
+                !matches_predicate(record.row.values, *bound->where)) {
+                continue;
+            }
+            apply_assignments(record.row, bound->assignments);
+            auto updated = heap->update(bound->table_id, record.row_id,
+                                        std::move(record.row));
+            if (!updated) {
+                throw std::logic_error{
+                    "heap row state diverged during update"};
+            }
+            ++result.rows_affected;
+        }
+        return result;
+    }
+
+    auto& storage = std::get<storage::StorageManager>(storage_);
+    auto records = storage.scan_records(bound->table_id);
+    if (!records) {
+        return std::unexpected(
+            QueryError{StorageError{std::move(records.error())}});
+    }
+    for (auto& record : *records) {
+        if (bound->where &&
+            !matches_predicate(record.row.values, *bound->where)) {
+            continue;
+        }
+        apply_assignments(record.row, bound->assignments);
+        auto updated = storage.update(bound->table_id, record.record_id,
+                                      record.row);
+        if (!updated) {
+            return std::unexpected(
+                QueryError{StorageError{std::move(updated.error())}});
         }
         ++result.rows_affected;
     }

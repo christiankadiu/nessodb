@@ -38,6 +38,8 @@ private:
         const sql::InsertStatement& statement);
     [[nodiscard]] std::expected<QueryResult, QueryError> execute(
         const sql::DeleteStatement& statement);
+    [[nodiscard]] std::expected<QueryResult, QueryError> execute(
+        const sql::UpdateStatement& statement);
 
     catalog::Catalog catalog_;
     std::variant<storage::InMemoryHeap, storage::StorageManager> storage_;

@@ -348,4 +348,54 @@ std::expected<BoundDeleteStatement, BindError> bind_delete_statement(
     return bound_statement;
 }
 
+std::expected<BoundUpdateStatement, BindError> bind_update_statement(
+    const sql::UpdateStatement& statement, const catalog::Catalog& catalog) {
+    const catalog::TableSchema* table = catalog.find_table(statement.table.name);
+    if (table == nullptr) {
+        return std::unexpected(
+            BindError{BindErrorCode::table_not_found,
+                      statement.table.location});
+    }
+
+    BoundUpdateStatement bound_statement{table->id, {}, std::nullopt};
+    bound_statement.assignments.reserve(statement.assignments.size());
+    for (const auto& assignment : statement.assignments) {
+        const std::size_t column_index =
+            find_column_index(*table, assignment.column.name);
+        if (column_index == table->columns.size()) {
+            return std::unexpected(
+                BindError{BindErrorCode::column_not_found,
+                          assignment.column.location});
+        }
+        for (const auto& existing : bound_statement.assignments) {
+            if (existing.column_index == column_index) {
+                return std::unexpected(
+                    BindError{BindErrorCode::duplicate_column,
+                              assignment.column.location});
+            }
+        }
+
+        auto value = bind_literal(assignment.value);
+        if (!value) {
+            return std::unexpected(value.error());
+        }
+        if (!value_matches_type(value->value,
+                                table->columns[column_index].type)) {
+            return std::unexpected(
+                BindError{BindErrorCode::type_mismatch, value->location});
+        }
+        bound_statement.assignments.push_back(
+            BoundUpdateAssignment{column_index, std::move(value->value)});
+    }
+
+    if (statement.where) {
+        auto predicate = bind_predicate(*statement.where, *table);
+        if (!predicate) {
+            return std::unexpected(predicate.error());
+        }
+        bound_statement.where = std::move(*predicate);
+    }
+    return bound_statement;
+}
+
 }  // namespace minidb::binder

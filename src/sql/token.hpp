@@ -22,6 +22,8 @@ enum class TokenType {
     table,
     insert,
     delete_keyword,
+    update,
+    set,
     into,
     values,
     integer_type,
