@@ -43,6 +43,8 @@ public:
     [[nodiscard]] std::expected<void, HeapError> create_table(common::TableId table_id);
     [[nodiscard]] std::expected<InMemoryRowId, HeapError> insert(
         common::TableId table_id, Row row);
+    [[nodiscard]] std::expected<void, HeapError> update(
+        common::TableId table_id, InMemoryRowId row_id, Row row);
     [[nodiscard]] std::expected<void, HeapError> erase(
         common::TableId table_id, InMemoryRowId row_id);
     [[nodiscard]] std::expected<std::vector<Row>, HeapError> scan(

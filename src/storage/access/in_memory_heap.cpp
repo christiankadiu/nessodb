@@ -33,6 +33,23 @@ std::expected<InMemoryRowId, HeapError> InMemoryHeap::insert(
     return InMemoryRowId{table->rows.size() - 1};
 }
 
+std::expected<void, HeapError> InMemoryHeap::update(
+    common::TableId table_id, InMemoryRowId row_id, Row row) {
+    TableData* table = find_table(table_id);
+    if (table == nullptr) {
+        return std::unexpected(HeapError::table_not_found);
+    }
+    if (!row_id.is_valid()) {
+        return std::unexpected(HeapError::invalid_row_id);
+    }
+    if (row_id.value >= table->rows.size() || !table->rows[row_id.value]) {
+        return std::unexpected(HeapError::row_not_found);
+    }
+
+    table->rows[row_id.value] = std::move(row);
+    return {};
+}
+
 std::expected<void, HeapError> InMemoryHeap::erase(
     common::TableId table_id, InMemoryRowId row_id) {
     TableData* table = find_table(table_id);
