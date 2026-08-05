@@ -126,6 +126,6 @@ struct UpdateStatement {
 
 using Statement =
     std::variant<SelectStatement, CreateTableStatement, InsertStatement,
-                 DeleteStatement>;
+                 DeleteStatement, UpdateStatement>;
 
 }  // namespace minidb::sql
