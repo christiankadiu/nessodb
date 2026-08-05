@@ -15,7 +15,7 @@ public:
         std::unique_ptr<RowOperator> child,
         const std::vector<binder::BoundSelectExpression>& expressions);
 
-    [[nodiscard]] std::optional<RowBatch> next() override;
+    [[nodiscard]] OperatorResult next() override;
 
 private:
     std::unique_ptr<RowOperator> child_;

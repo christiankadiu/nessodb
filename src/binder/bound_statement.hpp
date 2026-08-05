@@ -70,10 +70,21 @@ struct BoundNegationPredicate {
     BoundPredicate operand;
 };
 
+enum class BoundOrderDirection {
+    ascending,
+    descending,
+};
+
+struct BoundOrderByTerm {
+    std::size_t column_index;
+    BoundOrderDirection direction;
+};
+
 struct BoundSelectStatement {
     std::vector<BoundSelectExpression> expressions;
     common::TableId table_id;
     std::optional<BoundPredicate> where;
+    std::vector<BoundOrderByTerm> order_by;
 };
 
 struct BoundColumnDefinition {

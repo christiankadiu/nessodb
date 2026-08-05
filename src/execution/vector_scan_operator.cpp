@@ -14,19 +14,20 @@ VectorScanOperator::VectorScanOperator(std::vector<storage::Row> rows,
     }
 }
 
-std::optional<RowBatch> VectorScanOperator::next() {
+OperatorResult VectorScanOperator::next() {
     if (offset_ == rows_.size()) {
-        return std::nullopt;
+        return std::optional<RowBatch>{};
     }
 
-    const std::size_t end = std::min(offset_ + batch_size_, rows_.size());
+    const std::size_t end =
+        offset_ + std::min(batch_size_, rows_.size() - offset_);
     RowBatch batch;
     batch.rows.reserve(end - offset_);
     while (offset_ < end) {
         batch.rows.push_back(std::move(rows_[offset_]));
         ++offset_;
     }
-    return batch;
+    return std::optional<RowBatch>{std::move(batch)};
 }
 
 }  // namespace minidb::execution

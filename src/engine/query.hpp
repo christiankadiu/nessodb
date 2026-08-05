@@ -24,6 +24,7 @@ struct QueryResult {
 
 enum class ExecutionErrorCode {
     table_already_exists,
+    memory_limit_exceeded,
 };
 
 struct ExecutionError {

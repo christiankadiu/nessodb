@@ -14,7 +14,7 @@ public:
         std::vector<storage::Row> rows,
         std::size_t batch_size = default_batch_size);
 
-    [[nodiscard]] std::optional<RowBatch> next() override;
+    [[nodiscard]] OperatorResult next() override;
 
 private:
     std::vector<storage::Row> rows_;

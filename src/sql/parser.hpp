@@ -19,6 +19,7 @@ enum class ParseErrorCode {
     expected_predicate_operator,
     expected_null,
     expected_comma_from_or_end,
+    expected_comma_or_end,
     expected_end_of_input,
     expected_create,
     expected_table,
@@ -35,6 +36,7 @@ enum class ParseErrorCode {
     expected_comma_where_or_end,
     expected_into,
     expected_values,
+    expected_by,
 };
 
 struct ParseError {
@@ -60,7 +62,8 @@ private:
     [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();
     [[nodiscard]] std::expected<void, ParseError> parse_table_statement_tail(
-        std::optional<Predicate>& where);
+        std::optional<Predicate>& where,
+        std::vector<OrderByTerm>* order_by = nullptr);
 
     Lexer lexer_;
     std::optional<Token> lookahead_;
