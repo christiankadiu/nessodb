@@ -13,6 +13,7 @@ add_library(minidb
     src/catalog/catalog.cpp
     src/engine/database.cpp
     src/engine/query.cpp
+    src/execution/predicate_evaluator.cpp
     src/sql/lexer.cpp
     src/sql/parser.cpp
     src/storage/access/in_memory_heap.cpp
