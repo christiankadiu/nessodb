@@ -113,6 +113,17 @@ struct DeleteStatement {
     std::optional<Predicate> where;
 };
 
+struct UpdateAssignment {
+    ColumnReferenceExpression column;
+    LiteralExpression value;
+};
+
+struct UpdateStatement {
+    TableReference table;
+    std::vector<UpdateAssignment> assignments;
+    std::optional<Predicate> where;
+};
+
 using Statement =
     std::variant<SelectStatement, CreateTableStatement, InsertStatement,
                  DeleteStatement>;

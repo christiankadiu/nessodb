@@ -151,6 +151,10 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::insert;
     } else if (equals_case_insensitive(token.lexeme, "delete")) {
         token.type = TokenType::delete_keyword;
+    } else if (equals_case_insensitive(token.lexeme, "update")) {
+        token.type = TokenType::update;
+    } else if (equals_case_insensitive(token.lexeme, "set")) {
+        token.type = TokenType::set;
     } else if (equals_case_insensitive(token.lexeme, "into")) {
         token.type = TokenType::into;
     } else if (equals_case_insensitive(token.lexeme, "values")) {
