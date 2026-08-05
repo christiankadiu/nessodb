@@ -1,0 +1,25 @@
+#pragma once
+
+#include "binder/bound_statement.hpp"
+#include "execution/operator.hpp"
+
+#include <memory>
+#include <optional>
+#include <vector>
+
+namespace minidb::execution {
+
+class ProjectionOperator final : public RowOperator {
+public:
+    ProjectionOperator(
+        std::unique_ptr<RowOperator> child,
+        const std::vector<binder::BoundSelectExpression>& expressions);
+
+    [[nodiscard]] std::optional<RowBatch> next() override;
+
+private:
+    std::unique_ptr<RowOperator> child_;
+    const std::vector<binder::BoundSelectExpression>& expressions_;
+};
+
+}  // namespace minidb::execution

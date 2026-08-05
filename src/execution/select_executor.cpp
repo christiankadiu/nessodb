@@ -1,12 +1,11 @@
 #include "execution/select_executor.hpp"
 
 #include "execution/filter_operator.hpp"
+#include "execution/projection_operator.hpp"
 #include "execution/vector_scan_operator.hpp"
 
 #include <memory>
-#include <stdexcept>
 #include <utility>
-#include <variant>
 
 namespace minidb::execution {
 
@@ -21,33 +20,14 @@ std::vector<storage::Row> execute_select(
         source = std::make_unique<FilterOperator>(std::move(source),
                                                   *statement.where);
     }
+    if (!statement.expressions.empty()) {
+        source = std::make_unique<ProjectionOperator>(
+            std::move(source), statement.expressions);
+    }
 
     while (auto batch = source->next()) {
-        for (auto& input_row : batch->rows) {
-            if (statement.expressions.empty()) {
-                output_rows.push_back(std::move(input_row));
-                continue;
-            }
-
-            storage::Row output_row;
-            output_row.values.reserve(statement.expressions.size());
-            for (const auto& expression : statement.expressions) {
-                if (const auto* literal =
-                        std::get_if<binder::BoundLiteralExpression>(&expression)) {
-                    output_row.values.push_back(literal->value);
-                    continue;
-                }
-
-                const auto column_index =
-                    std::get<binder::BoundColumnReferenceExpression>(expression)
-                        .column_index;
-                if (column_index >= input_row.values.size()) {
-                    throw std::logic_error{
-                        "table schema and stored row state diverged"};
-                }
-                output_row.values.push_back(input_row.values[column_index]);
-            }
-            output_rows.push_back(std::move(output_row));
+        for (auto& row : batch->rows) {
+            output_rows.push_back(std::move(row));
         }
     }
     return output_rows;

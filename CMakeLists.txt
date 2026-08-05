@@ -15,6 +15,7 @@ add_library(minidb
     src/engine/query.cpp
     src/execution/filter_operator.cpp
     src/execution/predicate_evaluator.cpp
+    src/execution/projection_operator.cpp
     src/execution/select_executor.cpp
     src/execution/vector_scan_operator.cpp
     src/sql/lexer.cpp
