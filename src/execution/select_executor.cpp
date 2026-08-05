@@ -1,8 +1,9 @@
 #include "execution/select_executor.hpp"
 
-#include "execution/predicate_evaluator.hpp"
+#include "execution/filter_operator.hpp"
 #include "execution/vector_scan_operator.hpp"
 
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -14,15 +15,15 @@ std::vector<storage::Row> execute_select(
     std::vector<storage::Row> input_rows) {
     std::vector<storage::Row> output_rows;
     output_rows.reserve(input_rows.size());
-    VectorScanOperator source{std::move(input_rows)};
+    std::unique_ptr<RowOperator> source =
+        std::make_unique<VectorScanOperator>(std::move(input_rows));
+    if (statement.where) {
+        source = std::make_unique<FilterOperator>(std::move(source),
+                                                  *statement.where);
+    }
 
-    while (auto batch = source.next()) {
+    while (auto batch = source->next()) {
         for (auto& input_row : batch->rows) {
-            if (statement.where &&
-                !matches_predicate(input_row.values, *statement.where)) {
-                continue;
-            }
-
             if (statement.expressions.empty()) {
                 output_rows.push_back(std::move(input_row));
                 continue;
