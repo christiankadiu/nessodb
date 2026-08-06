@@ -1,0 +1,55 @@
+#pragma once
+
+#include "binder/bound_statement.hpp"
+#include "common/table_id.hpp"
+
+#include <cstddef>
+#include <memory>
+#include <variant>
+#include <vector>
+
+namespace minidb::planner {
+
+struct LogicalPlan;
+using LogicalPlanPtr = std::unique_ptr<LogicalPlan>;
+
+struct LogicalTableScan {
+    common::TableId table_id;
+};
+
+struct LogicalOneRow {};
+
+struct LogicalFilter {
+    binder::BoundPredicate predicate;
+    LogicalPlanPtr child;
+};
+
+struct LogicalSort {
+    std::vector<binder::BoundOrderByTerm> terms;
+    LogicalPlanPtr child;
+};
+
+struct LogicalProjection {
+    std::vector<binder::BoundSelectExpression> expressions;
+    LogicalPlanPtr child;
+};
+
+struct LogicalDistinct {
+    LogicalPlanPtr child;
+};
+
+struct LogicalLimit {
+    std::size_t limit;
+    std::size_t offset;
+    LogicalPlanPtr child;
+};
+
+using LogicalPlanNode =
+    std::variant<LogicalTableScan, LogicalOneRow, LogicalFilter, LogicalSort,
+                 LogicalProjection, LogicalDistinct, LogicalLimit>;
+
+struct LogicalPlan {
+    LogicalPlanNode node;
+};
+
+}  // namespace minidb::planner
