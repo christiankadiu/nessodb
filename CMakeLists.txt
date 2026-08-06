@@ -13,6 +13,7 @@ add_library(minidb
     src/catalog/catalog.cpp
     src/engine/database.cpp
     src/engine/query.cpp
+    src/execution/distinct_operator.cpp
     src/execution/filter_operator.cpp
     src/execution/limit_operator.cpp
     src/execution/predicate_evaluator.cpp
