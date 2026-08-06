@@ -21,6 +21,7 @@ add_library(minidb
     src/execution/select_executor.cpp
     src/execution/sort_operator.cpp
     src/execution/vector_scan_operator.cpp
+    src/planner/logical_planner.cpp
     src/sql/lexer.cpp
     src/sql/parser.cpp
     src/storage/access/in_memory_heap.cpp
