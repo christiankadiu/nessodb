@@ -105,6 +105,10 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
 
     SelectStatement statement;
     token = next_token();
+    if (token && token->type == TokenType::distinct) {
+        statement.distinct = true;
+        token = next_token();
+    }
 
     if (token && token->type == TokenType::star) {
         statement.select_all_columns = true;

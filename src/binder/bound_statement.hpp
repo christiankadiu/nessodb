@@ -83,6 +83,7 @@ struct BoundOrderByTerm {
 struct BoundSelectStatement {
     std::vector<BoundSelectExpression> expressions;
     common::TableId table_id;
+    bool distinct{};
     std::optional<BoundPredicate> where;
     std::vector<BoundOrderByTerm> order_by;
     std::optional<std::size_t> limit;

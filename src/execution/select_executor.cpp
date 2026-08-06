@@ -1,5 +1,6 @@
 #include "execution/select_executor.hpp"
 
+#include "execution/distinct_operator.hpp"
 #include "execution/filter_operator.hpp"
 #include "execution/limit_operator.hpp"
 #include "execution/projection_operator.hpp"
@@ -39,6 +40,9 @@ std::expected<std::vector<storage::Row>, OperatorError> execute_select(
     if (!statement.expressions.empty()) {
         source = std::make_unique<ProjectionOperator>(
             std::move(source), statement.expressions);
+    }
+    if (statement.distinct) {
+        source = std::make_unique<DistinctOperator>(std::move(source));
     }
     if (statement.limit || statement.offset) {
         source = std::make_unique<LimitOperator>(

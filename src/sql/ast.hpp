@@ -101,6 +101,7 @@ struct OffsetClause {
 struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
+    bool distinct{};
     std::optional<TableReference> from;
     std::optional<Predicate> where;
     std::vector<OrderByTerm> order_by;
