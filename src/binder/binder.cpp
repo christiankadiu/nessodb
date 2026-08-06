@@ -241,6 +241,7 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
 
     BoundSelectStatement bound_statement;
+    bound_statement.distinct = statement.distinct;
     if (table != nullptr) {
         bound_statement.table_id = table->id;
     }
