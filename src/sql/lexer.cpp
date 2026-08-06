@@ -149,6 +149,10 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::asc;
     } else if (equals_case_insensitive(token.lexeme, "desc")) {
         token.type = TokenType::desc;
+    } else if (equals_case_insensitive(token.lexeme, "limit")) {
+        token.type = TokenType::limit;
+    } else if (equals_case_insensitive(token.lexeme, "offset")) {
+        token.type = TokenType::offset;
     } else if (equals_case_insensitive(token.lexeme, "null")) {
         token.type = TokenType::null_literal;
     } else if (equals_case_insensitive(token.lexeme, "create")) {

@@ -22,6 +22,8 @@ enum class TokenType {
     by,
     asc,
     desc,
+    limit,
+    offset,
     create,
     table,
     insert,

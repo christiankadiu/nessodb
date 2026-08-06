@@ -88,12 +88,24 @@ struct OrderByTerm {
     OrderDirection direction;
 };
 
+struct LimitClause {
+    std::string_view count;
+    SourceLocation location;
+};
+
+struct OffsetClause {
+    std::string_view count;
+    SourceLocation location;
+};
+
 struct SelectStatement {
     std::vector<SelectExpression> expressions;
     bool select_all_columns{};
     std::optional<TableReference> from;
     std::optional<Predicate> where;
     std::vector<OrderByTerm> order_by;
+    std::optional<LimitClause> limit;
+    std::optional<OffsetClause> offset;
 };
 
 enum class ColumnType {
