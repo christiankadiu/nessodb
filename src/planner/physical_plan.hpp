@@ -40,7 +40,7 @@ struct PhysicalInMemorySort {
 };
 
 struct PhysicalProjection {
-    std::vector<binder::BoundSelectExpression> expressions;
+    std::vector<binder::BoundExpression> expressions;
     PhysicalPlanPtr child;
 };
 

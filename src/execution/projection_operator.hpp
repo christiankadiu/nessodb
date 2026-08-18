@@ -13,13 +13,13 @@ class ProjectionOperator final : public RowOperator {
 public:
     ProjectionOperator(
         std::unique_ptr<RowOperator> child,
-        std::vector<binder::BoundSelectExpression> expressions);
+        std::vector<binder::BoundExpression> expressions);
 
     [[nodiscard]] OperatorResult next() override;
 
 private:
     std::unique_ptr<RowOperator> child_;
-    std::vector<binder::BoundSelectExpression> expressions_;
+    std::vector<binder::BoundExpression> expressions_;
 };
 
 }  // namespace minidb::execution

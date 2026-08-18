@@ -1,5 +1,6 @@
 #pragma once
 
+#include "binder/bound_expression.hpp"
 #include "common/table_id.hpp"
 #include "sql/token.hpp"
 #include "types/logical_type.hpp"
@@ -13,19 +14,6 @@
 #include <vector>
 
 namespace minidb::binder {
-
-struct BoundLiteralExpression {
-    types::Value value;
-    sql::SourceLocation location;
-};
-
-struct BoundColumnReferenceExpression {
-    std::size_t column_index;
-    sql::SourceLocation location;
-};
-
-using BoundSelectExpression =
-    std::variant<BoundLiteralExpression, BoundColumnReferenceExpression>;
 
 enum class BoundComparisonOperator {
     equal,
@@ -81,7 +69,7 @@ struct BoundOrderByTerm {
 };
 
 struct BoundSelectStatement {
-    std::vector<BoundSelectExpression> expressions;
+    std::vector<BoundExpression> expressions;
     common::TableId table_id;
     bool distinct{};
     std::optional<BoundPredicate> where;

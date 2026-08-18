@@ -30,7 +30,7 @@ struct LogicalSort {
 };
 
 struct LogicalProjection {
-    std::vector<binder::BoundSelectExpression> expressions;
+    std::vector<binder::BoundExpression> expressions;
     LogicalPlanPtr child;
 };
 
