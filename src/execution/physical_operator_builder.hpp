@@ -1,16 +1,16 @@
 #pragma once
 
-#include "binder/bound_statement.hpp"
 #include "execution/operator.hpp"
+#include "planner/physical_plan.hpp"
 #include "storage/access/row.hpp"
 
-#include <expected>
+#include <memory>
 #include <vector>
 
 namespace minidb::execution {
 
-[[nodiscard]] std::expected<std::vector<storage::Row>, OperatorError> execute_select(
-    binder::BoundSelectStatement statement,
+[[nodiscard]] std::unique_ptr<RowOperator> build_operator_tree(
+    planner::PhysicalPlanPtr plan,
     std::vector<storage::Row> input_rows);
 
 }  // namespace minidb::execution

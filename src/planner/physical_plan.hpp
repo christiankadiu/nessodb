@@ -1,0 +1,66 @@
+#pragma once
+
+#include "binder/bound_statement.hpp"
+#include "common/table_id.hpp"
+
+#include <cstddef>
+#include <memory>
+#include <variant>
+#include <vector>
+
+namespace minidb::planner {
+
+struct PhysicalPlan;
+using PhysicalPlanPtr = std::unique_ptr<PhysicalPlan>;
+
+struct PhysicalSequentialScan {
+    common::TableId table_id;
+};
+
+struct PhysicalOneRow {};
+
+struct PhysicalFilter {
+    binder::BoundPredicate predicate;
+    PhysicalPlanPtr child;
+};
+
+enum class PhysicalSortDirection {
+    ascending,
+    descending,
+};
+
+struct PhysicalSortKey {
+    std::size_t column_index;
+    PhysicalSortDirection direction;
+};
+
+struct PhysicalInMemorySort {
+    std::vector<PhysicalSortKey> keys;
+    PhysicalPlanPtr child;
+};
+
+struct PhysicalProjection {
+    std::vector<binder::BoundSelectExpression> expressions;
+    PhysicalPlanPtr child;
+};
+
+struct PhysicalHashDistinct {
+    PhysicalPlanPtr child;
+};
+
+struct PhysicalLimit {
+    std::size_t limit;
+    std::size_t offset;
+    PhysicalPlanPtr child;
+};
+
+using PhysicalPlanNode =
+    std::variant<PhysicalSequentialScan, PhysicalOneRow, PhysicalFilter,
+                 PhysicalInMemorySort, PhysicalProjection,
+                 PhysicalHashDistinct, PhysicalLimit>;
+
+struct PhysicalPlan {
+    PhysicalPlanNode node;
+};
+
+}  // namespace minidb::planner
