@@ -16,6 +16,7 @@ add_library(minidb
     src/execution/distinct_operator.cpp
     src/execution/filter_operator.cpp
     src/execution/limit_operator.cpp
+    src/execution/physical_operator_builder.cpp
     src/execution/predicate_evaluator.cpp
     src/execution/projection_operator.cpp
     src/execution/select_executor.cpp
