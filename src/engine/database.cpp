@@ -91,8 +91,6 @@ std::expected<QueryResult, QueryError> Database::execute(
             }
             stored_rows = std::move(*scanned);
         }
-    } else {
-        stored_rows.emplace_back();
     }
 
     auto selected_rows =
