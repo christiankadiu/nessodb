@@ -3,6 +3,9 @@
 #include "binder/binder.hpp"
 #include "execution/predicate_evaluator.hpp"
 #include "execution/select_executor.hpp"
+#include "planner/logical_planner.hpp"
+#include "planner/physical_plan_formatter.hpp"
+#include "planner/physical_planner.hpp"
 #include "sql/parser.hpp"
 
 #include <stdexcept>
@@ -103,6 +106,27 @@ std::expected<QueryResult, QueryError> Database::execute(
     result.rows.reserve(selected_rows->size());
     for (auto& row : *selected_rows) {
         result.rows.push_back(ResultRow{std::move(row.values)});
+    }
+    return result;
+}
+
+std::expected<QueryResult, QueryError> Database::execute(
+    const sql::ExplainStatement& statement) {
+    auto bound = binder::bind_select_statement(statement.select, catalog_);
+    if (!bound) {
+        return std::unexpected(QueryError{bound.error()});
+    }
+
+    auto logical_plan = planner::plan_select(std::move(*bound));
+    auto physical_plan = planner::plan_physical(std::move(logical_plan));
+    auto lines = planner::format_physical_plan(*physical_plan);
+
+    QueryResult result;
+    result.rows.reserve(lines.size());
+    for (auto& line : lines) {
+        ResultRow row;
+        row.values.emplace_back(std::move(line));
+        result.rows.push_back(std::move(row));
     }
     return result;
 }

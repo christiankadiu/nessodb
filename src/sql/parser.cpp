@@ -63,6 +63,13 @@ std::expected<Statement, ParseError> Parser::parse_statement() {
         }
         return Statement{std::move(*statement)};
     }
+    if (token->type == TokenType::explain) {
+        auto statement = parse_explain_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{std::move(*statement)};
+    }
     if (token->type == TokenType::create) {
         auto statement = parse_create_table_statement();
         if (!statement) {
@@ -92,6 +99,24 @@ std::expected<Statement, ParseError> Parser::parse_statement() {
         return Statement{std::move(*statement)};
     }
     return std::unexpected(ParseError{ParseErrorCode::expected_statement, token->location});
+}
+
+std::expected<ExplainStatement, ParseError>
+Parser::parse_explain_statement() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::explain) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_explain, token->location});
+    }
+
+    auto statement = parse_select_statement();
+    if (!statement) {
+        return std::unexpected(statement.error());
+    }
+    return ExplainStatement{std::move(*statement)};
 }
 
 std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {

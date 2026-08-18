@@ -109,6 +109,10 @@ struct SelectStatement {
     std::optional<OffsetClause> offset;
 };
 
+struct ExplainStatement {
+    SelectStatement select;
+};
+
 enum class ColumnType {
     integer,
     text,
@@ -149,7 +153,7 @@ struct UpdateStatement {
 };
 
 using Statement =
-    std::variant<SelectStatement, CreateTableStatement, InsertStatement,
-                 DeleteStatement, UpdateStatement>;
+    std::variant<SelectStatement, ExplainStatement, CreateTableStatement,
+                 InsertStatement, DeleteStatement, UpdateStatement>;
 
 }  // namespace minidb::sql
