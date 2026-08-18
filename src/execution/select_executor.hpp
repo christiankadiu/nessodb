@@ -10,7 +10,7 @@
 namespace minidb::execution {
 
 [[nodiscard]] std::expected<std::vector<storage::Row>, OperatorError> execute_select(
-    const binder::BoundSelectStatement& statement,
+    binder::BoundSelectStatement statement,
     std::vector<storage::Row> input_rows);
 
 }  // namespace minidb::execution

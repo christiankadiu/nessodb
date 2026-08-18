@@ -14,15 +14,15 @@
 namespace minidb::execution {
 
 std::expected<std::vector<storage::Row>, OperatorError> execute_select(
-    const binder::BoundSelectStatement& statement,
+    binder::BoundSelectStatement statement,
     std::vector<storage::Row> input_rows) {
     std::vector<storage::Row> output_rows;
     output_rows.reserve(input_rows.size());
     std::unique_ptr<RowOperator> source =
         std::make_unique<VectorScanOperator>(std::move(input_rows));
     if (statement.where) {
-        source = std::make_unique<FilterOperator>(std::move(source),
-                                                  *statement.where);
+        source = std::make_unique<FilterOperator>(
+            std::move(source), std::move(*statement.where));
     }
     if (!statement.order_by.empty()) {
         std::vector<SortKey> keys;
@@ -39,7 +39,7 @@ std::expected<std::vector<storage::Row>, OperatorError> execute_select(
     }
     if (!statement.expressions.empty()) {
         source = std::make_unique<ProjectionOperator>(
-            std::move(source), statement.expressions);
+            std::move(source), std::move(statement.expressions));
     }
     if (statement.distinct) {
         source = std::make_unique<DistinctOperator>(std::move(source));

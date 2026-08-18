@@ -8,8 +8,8 @@ namespace minidb::execution {
 
 ProjectionOperator::ProjectionOperator(
     std::unique_ptr<RowOperator> child,
-    const std::vector<binder::BoundSelectExpression>& expressions)
-    : child_(std::move(child)), expressions_(expressions) {
+    std::vector<binder::BoundSelectExpression> expressions)
+    : child_(std::move(child)), expressions_(std::move(expressions)) {
     if (!child_) {
         throw std::invalid_argument{"projection operator requires a child"};
     }
