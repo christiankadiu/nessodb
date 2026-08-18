@@ -1,8 +1,9 @@
 #include "execution/projection_operator.hpp"
 
+#include "execution/expression_evaluator.hpp"
+
 #include <stdexcept>
 #include <utility>
-#include <variant>
 
 namespace minidb::execution {
 
@@ -34,20 +35,8 @@ OperatorResult ProjectionOperator::next() {
         storage::Row output_row;
         output_row.values.reserve(expressions_.size());
         for (const auto& expression : expressions_) {
-            if (const auto* literal =
-                    std::get_if<binder::BoundLiteralExpression>(&expression)) {
-                output_row.values.push_back(literal->value);
-                continue;
-            }
-
-            const auto column_index =
-                std::get<binder::BoundColumnReferenceExpression>(expression)
-                    .column_index;
-            if (column_index >= input_row.values.size()) {
-                throw std::logic_error{
-                    "table schema and stored row state diverged"};
-            }
-            output_row.values.push_back(input_row.values[column_index]);
+            output_row.values.push_back(
+                evaluate_expression(input_row.values, expression));
         }
         output.rows.push_back(std::move(output_row));
     }

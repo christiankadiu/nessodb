@@ -14,6 +14,7 @@ add_library(minidb
     src/engine/database.cpp
     src/engine/query.cpp
     src/execution/distinct_operator.cpp
+    src/execution/expression_evaluator.cpp
     src/execution/filter_operator.cpp
     src/execution/limit_operator.cpp
     src/execution/physical_operator_builder.cpp
