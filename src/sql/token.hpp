@@ -11,6 +11,7 @@ enum class TokenType {
     integer_literal,
     string_literal,
     null_literal,
+    explain,
     select,
     distinct,
     from,

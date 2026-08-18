@@ -33,6 +33,8 @@ private:
     [[nodiscard]] std::expected<QueryResult, QueryError> execute(
         const sql::SelectStatement& statement);
     [[nodiscard]] std::expected<QueryResult, QueryError> execute(
+        const sql::ExplainStatement& statement);
+    [[nodiscard]] std::expected<QueryResult, QueryError> execute(
         const sql::CreateTableStatement& statement);
     [[nodiscard]] std::expected<QueryResult, QueryError> execute(
         const sql::InsertStatement& statement);
