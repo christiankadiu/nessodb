@@ -35,8 +35,13 @@ OperatorResult ProjectionOperator::next() {
         storage::Row output_row;
         output_row.values.reserve(expressions_.size());
         for (const auto& expression : expressions_) {
-            output_row.values.push_back(
-                evaluate_expression(input_row.values, expression));
+            auto result = evaluate_expression(input_row.values, expression);
+            auto* value = std::get_if<types::Value>(&result);
+            if (value == nullptr) {
+                throw std::logic_error{
+                    "projection expression does not produce a stored value"};
+            }
+            output_row.values.push_back(std::move(*value));
         }
         output.rows.push_back(std::move(output_row));
     }

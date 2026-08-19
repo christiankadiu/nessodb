@@ -4,10 +4,13 @@
 #include "types/value.hpp"
 
 #include <span>
+#include <variant>
 
 namespace minidb::execution {
 
-[[nodiscard]] types::Value evaluate_expression(
+using ExpressionResult = std::variant<types::Value, bool>;
+
+[[nodiscard]] ExpressionResult evaluate_expression(
     std::span<const types::Value> input,
     const binder::BoundExpression& expression);
 
