@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sql/token.hpp"
 #include "storage/access/row.hpp"
 
 #include <cstddef>
@@ -17,10 +18,13 @@ struct RowBatch {
 
 enum class OperatorErrorCode {
     memory_limit_exceeded,
+    integer_overflow,
+    division_by_zero,
 };
 
 struct OperatorError {
     OperatorErrorCode code;
+    sql::SourceLocation location{};
 };
 
 using OperatorResult =

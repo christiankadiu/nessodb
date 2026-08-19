@@ -37,12 +37,32 @@ bool matches_where_clause(std::span<const types::Value> values,
         throw std::logic_error{"WHERE expression must be boolean"};
     }
     const auto result = execution::evaluate_expression(values, expression);
-    const auto* matches = std::get_if<bool>(&result);
+    if (!result) {
+        throw std::logic_error{
+            "WHERE expression produced an arithmetic error"};
+    }
+    const auto* matches = std::get_if<bool>(&*result);
     if (matches == nullptr) {
         throw std::logic_error{
             "WHERE expression does not produce a boolean"};
     }
     return *matches;
+}
+
+ExecutionError execution_error(execution::OperatorError error) noexcept {
+    switch (error.code) {
+        case execution::OperatorErrorCode::memory_limit_exceeded:
+            return ExecutionError{
+                ExecutionErrorCode::memory_limit_exceeded, error.location};
+        case execution::OperatorErrorCode::integer_overflow:
+            return ExecutionError{
+                ExecutionErrorCode::integer_overflow, error.location};
+        case execution::OperatorErrorCode::division_by_zero:
+            return ExecutionError{
+                ExecutionErrorCode::division_by_zero, error.location};
+    }
+    return ExecutionError{
+        ExecutionErrorCode::memory_limit_exceeded, error.location};
 }
 
 }  // namespace
@@ -115,8 +135,8 @@ std::expected<QueryResult, QueryError> Database::execute(
     auto selected_rows =
         execution::execute_select(std::move(*bound), std::move(stored_rows));
     if (!selected_rows) {
-        return std::unexpected(QueryError{ExecutionError{
-            ExecutionErrorCode::memory_limit_exceeded, {}}});
+        return std::unexpected(QueryError{
+            execution_error(selected_rows.error())});
     }
     QueryResult result;
     result.rows.reserve(selected_rows->size());

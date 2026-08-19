@@ -43,7 +43,16 @@ OperatorResult ProjectionOperator::next() {
         output_row.values.reserve(expressions_.size());
         for (const auto& expression : expressions_) {
             auto result = evaluate_expression(input_row.values, expression);
-            auto* value = std::get_if<types::Value>(&result);
+            if (!result) {
+                const auto code =
+                    result.error().code ==
+                            ExpressionErrorCode::integer_overflow
+                        ? OperatorErrorCode::integer_overflow
+                        : OperatorErrorCode::division_by_zero;
+                return std::unexpected(
+                    OperatorError{code, result.error().location});
+            }
+            auto* value = std::get_if<types::Value>(&*result);
             if (value == nullptr) {
                 throw std::logic_error{
                     "projection expression does not produce a stored value"};

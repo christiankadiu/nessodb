@@ -34,7 +34,16 @@ OperatorResult FilterOperator::next() {
         output.rows.reserve((*input)->rows.size());
         for (auto& row : (*input)->rows) {
             const auto result = evaluate_expression(row.values, predicate_);
-            const auto* matches = std::get_if<bool>(&result);
+            if (!result) {
+                const auto code =
+                    result.error().code ==
+                            ExpressionErrorCode::integer_overflow
+                        ? OperatorErrorCode::integer_overflow
+                        : OperatorErrorCode::division_by_zero;
+                return std::unexpected(
+                    OperatorError{code, result.error().location});
+            }
+            const auto* matches = std::get_if<bool>(&*result);
             if (matches == nullptr) {
                 throw std::logic_error{
                     "filter expression does not produce a boolean"};
