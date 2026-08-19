@@ -18,6 +18,13 @@ ProjectionOperator::ProjectionOperator(
         throw std::invalid_argument{
             "projection operator requires at least one expression"};
     }
+    for (const auto& expression : expressions_) {
+        if (expression.result_type() !=
+            binder::BoundExpressionResultType::value) {
+            throw std::invalid_argument{
+                "projection operator requires value expressions"};
+        }
+    }
 }
 
 OperatorResult ProjectionOperator::next() {

@@ -32,6 +32,10 @@ void apply_assignments(
 
 bool matches_where_clause(std::span<const types::Value> values,
                           const binder::BoundExpression& expression) {
+    if (expression.result_type() !=
+        binder::BoundExpressionResultType::boolean) {
+        throw std::logic_error{"WHERE expression must be boolean"};
+    }
     const auto result = execution::evaluate_expression(values, expression);
     const auto* matches = std::get_if<bool>(&result);
     if (matches == nullptr) {

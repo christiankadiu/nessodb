@@ -34,6 +34,11 @@ enum class BoundLogicalOperator {
     disjunction,
 };
 
+enum class BoundExpressionResultType {
+    value,
+    boolean,
+};
+
 struct BoundExpression;
 using BoundExpressionPtr = std::unique_ptr<BoundExpression>;
 
@@ -64,18 +69,32 @@ using BoundExpressionNode =
                  BoundLogicalExpression, BoundNegationExpression>;
 
 struct BoundExpression {
+private:
+    BoundExpressionResultType result_type_;
+
+public:
     BoundExpression(BoundLiteralExpression expression)
-        : node(std::move(expression)) {}
+        : result_type_(BoundExpressionResultType::value),
+          node(std::move(expression)) {}
     BoundExpression(BoundColumnReferenceExpression expression)
-        : node(std::move(expression)) {}
+        : result_type_(BoundExpressionResultType::value),
+          node(std::move(expression)) {}
     BoundExpression(BoundComparisonExpression expression)
-        : node(std::move(expression)) {}
+        : result_type_(BoundExpressionResultType::boolean),
+          node(std::move(expression)) {}
     BoundExpression(BoundNullTestExpression expression)
-        : node(std::move(expression)) {}
+        : result_type_(BoundExpressionResultType::boolean),
+          node(std::move(expression)) {}
     BoundExpression(BoundLogicalExpression expression)
-        : node(std::move(expression)) {}
+        : result_type_(BoundExpressionResultType::boolean),
+          node(std::move(expression)) {}
     BoundExpression(BoundNegationExpression expression)
-        : node(std::move(expression)) {}
+        : result_type_(BoundExpressionResultType::boolean),
+          node(std::move(expression)) {}
+
+    [[nodiscard]] BoundExpressionResultType result_type() const noexcept {
+        return result_type_;
+    }
 
     BoundExpressionNode node;
 };

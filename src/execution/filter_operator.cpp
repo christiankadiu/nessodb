@@ -13,6 +13,11 @@ FilterOperator::FilterOperator(std::unique_ptr<RowOperator> child,
     if (!child_) {
         throw std::invalid_argument{"filter operator requires a child"};
     }
+    if (predicate_.result_type() !=
+        binder::BoundExpressionResultType::boolean) {
+        throw std::invalid_argument{
+            "filter operator requires a boolean expression"};
+    }
 }
 
 OperatorResult FilterOperator::next() {
