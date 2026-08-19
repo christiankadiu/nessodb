@@ -9,6 +9,6 @@ namespace minidb::execution {
 
 [[nodiscard]] bool matches_predicate(
     std::span<const types::Value> values,
-    const binder::BoundPredicate& predicate);
+    const binder::BoundExpression& predicate);
 
 }  // namespace minidb::execution

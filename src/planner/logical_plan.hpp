@@ -20,7 +20,7 @@ struct LogicalTableScan {
 struct LogicalOneRow {};
 
 struct LogicalFilter {
-    binder::BoundPredicate predicate;
+    binder::BoundExpression predicate;
     LogicalPlanPtr child;
 };
 

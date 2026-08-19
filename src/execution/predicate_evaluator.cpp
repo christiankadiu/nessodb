@@ -1,7 +1,8 @@
 #include "execution/predicate_evaluator.hpp"
 
+#include "execution/expression_evaluator.hpp"
+
 #include <cstdint>
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -58,42 +59,59 @@ bool matches_comparison(const types::Value& left, const types::Value& right,
 }  // namespace
 
 bool matches_predicate(std::span<const types::Value> values,
-                       const binder::BoundPredicate& predicate) {
+                       const binder::BoundExpression& predicate) {
     if (const auto* comparison =
-            std::get_if<binder::BoundComparisonPredicate>(&predicate)) {
-        if (comparison->column_index >= values.size()) {
-            throw std::logic_error{"table schema and stored row state diverged"};
+            std::get_if<binder::BoundComparisonExpression>(
+                &predicate.node)) {
+        if (!comparison->left || !comparison->right) {
+            throw std::logic_error{
+                "comparison expression requires two operands"};
         }
-        return matches_comparison(values[comparison->column_index],
-                                  comparison->value,
+        const auto left = evaluate_expression(values, *comparison->left);
+        const auto right = evaluate_expression(values, *comparison->right);
+        return matches_comparison(left, right,
                                   comparison->comparison);
     }
 
     if (const auto* null_predicate =
-            std::get_if<binder::BoundNullPredicate>(&predicate)) {
-        if (null_predicate->column_index >= values.size()) {
-            throw std::logic_error{"table schema and stored row state diverged"};
+            std::get_if<binder::BoundNullTestExpression>(
+                &predicate.node)) {
+        if (!null_predicate->operand) {
+            throw std::logic_error{
+                "null test expression requires an operand"};
         }
         const bool is_null = std::holds_alternative<types::NullValue>(
-            values[null_predicate->column_index]);
+            evaluate_expression(values, *null_predicate->operand));
         return null_predicate->negated ? !is_null : is_null;
     }
 
     if (const auto* negation =
-            std::get_if<std::unique_ptr<binder::BoundNegationPredicate>>(
-                &predicate)) {
-        return !matches_predicate(values, (*negation)->operand);
+            std::get_if<binder::BoundNegationExpression>(
+                &predicate.node)) {
+        if (!negation->operand) {
+            throw std::logic_error{
+                "negation expression requires an operand"};
+        }
+        return !matches_predicate(values, *negation->operand);
     }
 
-    const auto& logical =
-        *std::get<std::unique_ptr<binder::BoundLogicalPredicate>>(predicate);
-    switch (logical.operation) {
+    const auto* logical = std::get_if<binder::BoundLogicalExpression>(
+        &predicate.node);
+    if (logical == nullptr) {
+        throw std::logic_error{
+            "bound expression does not produce a predicate"};
+    }
+    if (!logical->left || !logical->right) {
+        throw std::logic_error{
+            "logical expression requires two operands"};
+    }
+    switch (logical->operation) {
         case binder::BoundLogicalOperator::conjunction:
-            return matches_predicate(values, logical.left) &&
-                   matches_predicate(values, logical.right);
+            return matches_predicate(values, *logical->left) &&
+                   matches_predicate(values, *logical->right);
         case binder::BoundLogicalOperator::disjunction:
-            return matches_predicate(values, logical.left) ||
-                   matches_predicate(values, logical.right);
+            return matches_predicate(values, *logical->left) ||
+                   matches_predicate(values, *logical->right);
     }
     return false;
 }

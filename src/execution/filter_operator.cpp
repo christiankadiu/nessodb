@@ -8,7 +8,7 @@
 namespace minidb::execution {
 
 FilterOperator::FilterOperator(std::unique_ptr<RowOperator> child,
-                               binder::BoundPredicate predicate)
+                               binder::BoundExpression predicate)
     : child_(std::move(child)), predicate_(std::move(predicate)) {
     if (!child_) {
         throw std::invalid_argument{"filter operator requires a child"};

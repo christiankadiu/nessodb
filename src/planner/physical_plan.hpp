@@ -20,7 +20,7 @@ struct PhysicalSequentialScan {
 struct PhysicalOneRow {};
 
 struct PhysicalFilter {
-    binder::BoundPredicate predicate;
+    binder::BoundExpression predicate;
     PhysicalPlanPtr child;
 };
 
