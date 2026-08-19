@@ -61,6 +61,16 @@ public:
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
     [[nodiscard]] std::expected<Token, ParseError> peek_token();
+    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    parse_select_expression();
+    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    parse_additive_expression();
+    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    parse_multiplicative_expression();
+    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    parse_unary_expression();
+    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    parse_primary_expression();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_predicate();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();
