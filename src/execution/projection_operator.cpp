@@ -1,14 +1,15 @@
 #include "execution/projection_operator.hpp"
 
+#include "execution/expression_evaluator.hpp"
+
 #include <stdexcept>
 #include <utility>
-#include <variant>
 
 namespace minidb::execution {
 
 ProjectionOperator::ProjectionOperator(
     std::unique_ptr<RowOperator> child,
-    std::vector<binder::BoundSelectExpression> expressions)
+    std::vector<binder::BoundExpression> expressions)
     : child_(std::move(child)), expressions_(std::move(expressions)) {
     if (!child_) {
         throw std::invalid_argument{"projection operator requires a child"};
@@ -16,6 +17,13 @@ ProjectionOperator::ProjectionOperator(
     if (expressions_.empty()) {
         throw std::invalid_argument{
             "projection operator requires at least one expression"};
+    }
+    for (const auto& expression : expressions_) {
+        if (expression.result_type() !=
+            binder::BoundExpressionResultType::value) {
+            throw std::invalid_argument{
+                "projection operator requires value expressions"};
+        }
     }
 }
 
@@ -34,20 +42,13 @@ OperatorResult ProjectionOperator::next() {
         storage::Row output_row;
         output_row.values.reserve(expressions_.size());
         for (const auto& expression : expressions_) {
-            if (const auto* literal =
-                    std::get_if<binder::BoundLiteralExpression>(&expression)) {
-                output_row.values.push_back(literal->value);
-                continue;
-            }
-
-            const auto column_index =
-                std::get<binder::BoundColumnReferenceExpression>(expression)
-                    .column_index;
-            if (column_index >= input_row.values.size()) {
+            auto result = evaluate_expression(input_row.values, expression);
+            auto* value = std::get_if<types::Value>(&result);
+            if (value == nullptr) {
                 throw std::logic_error{
-                    "table schema and stored row state diverged"};
+                    "projection expression does not produce a stored value"};
             }
-            output_row.values.push_back(input_row.values[column_index]);
+            output_row.values.push_back(std::move(*value));
         }
         output.rows.push_back(std::move(output_row));
     }

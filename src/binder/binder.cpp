@@ -159,7 +159,7 @@ const sql::SourceLocation& predicate_location(
         std::get<std::unique_ptr<sql::LogicalPredicate>>(predicate)->left);
 }
 
-std::expected<BoundPredicate, BindError> bind_predicate(
+std::expected<BoundExpression, BindError> bind_predicate(
     const sql::Predicate& predicate, const catalog::TableSchema& table) {
     if (const auto* comparison =
             std::get_if<sql::ComparisonPredicate>(&predicate)) {
@@ -178,9 +178,12 @@ std::expected<BoundPredicate, BindError> bind_predicate(
             return std::unexpected(
                 BindError{BindErrorCode::type_mismatch, value->location});
         }
-        return BoundPredicate{BoundComparisonPredicate{
-            column_index, bind_comparison_operator(comparison->comparison),
-            std::move(value->value)}};
+        return BoundExpression{BoundComparisonExpression{
+            bind_comparison_operator(comparison->comparison),
+            std::make_unique<BoundExpression>(
+                BoundColumnReferenceExpression{
+                    column_index, comparison->column.location}),
+            std::make_unique<BoundExpression>(std::move(*value))}};
     }
 
     if (const auto* null_predicate =
@@ -191,8 +194,11 @@ std::expected<BoundPredicate, BindError> bind_predicate(
             return std::unexpected(BindError{
                 BindErrorCode::column_not_found, null_predicate->column.location});
         }
-        return BoundPredicate{
-            BoundNullPredicate{column_index, null_predicate->negated}};
+        return BoundExpression{BoundNullTestExpression{
+            std::make_unique<BoundExpression>(
+                BoundColumnReferenceExpression{
+                    column_index, null_predicate->column.location}),
+            null_predicate->negated}};
     }
 
     if (const auto* negation =
@@ -201,8 +207,8 @@ std::expected<BoundPredicate, BindError> bind_predicate(
         if (!operand) {
             return std::unexpected(operand.error());
         }
-        return BoundPredicate{std::make_unique<BoundNegationPredicate>(
-            BoundNegationPredicate{std::move(*operand)})};
+        return BoundExpression{BoundNegationExpression{
+            std::make_unique<BoundExpression>(std::move(*operand))}};
     }
 
     const auto& logical =
@@ -215,9 +221,10 @@ std::expected<BoundPredicate, BindError> bind_predicate(
     if (!right) {
         return std::unexpected(right.error());
     }
-    return BoundPredicate{std::make_unique<BoundLogicalPredicate>(
-        BoundLogicalPredicate{bind_logical_operator(logical.operation),
-                              std::move(*left), std::move(*right)})};
+    return BoundExpression{BoundLogicalExpression{
+        bind_logical_operator(logical.operation),
+        std::make_unique<BoundExpression>(std::move(*left)),
+        std::make_unique<BoundExpression>(std::move(*right))}};
 }
 
 }  // namespace

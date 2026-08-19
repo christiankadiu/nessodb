@@ -1,13 +1,14 @@
 #include "engine/database.hpp"
 
 #include "binder/binder.hpp"
-#include "execution/predicate_evaluator.hpp"
+#include "execution/expression_evaluator.hpp"
 #include "execution/select_executor.hpp"
 #include "planner/logical_planner.hpp"
 #include "planner/physical_plan_formatter.hpp"
 #include "planner/physical_planner.hpp"
 #include "sql/parser.hpp"
 
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -27,6 +28,21 @@ void apply_assignments(
         }
         row.values[assignment.column_index] = assignment.value;
     }
+}
+
+bool matches_where_clause(std::span<const types::Value> values,
+                          const binder::BoundExpression& expression) {
+    if (expression.result_type() !=
+        binder::BoundExpressionResultType::boolean) {
+        throw std::logic_error{"WHERE expression must be boolean"};
+    }
+    const auto result = execution::evaluate_expression(values, expression);
+    const auto* matches = std::get_if<bool>(&result);
+    if (matches == nullptr) {
+        throw std::logic_error{
+            "WHERE expression does not produce a boolean"};
+    }
+    return *matches;
 }
 
 }  // namespace
@@ -209,8 +225,7 @@ std::expected<QueryResult, QueryError> Database::execute(
 
         for (const auto& record : *records) {
             if (bound->where &&
-                !execution::matches_predicate(record.row.values,
-                                              *bound->where)) {
+                !matches_where_clause(record.row.values, *bound->where)) {
                 continue;
             }
             auto erased = heap->erase(bound->table_id, record.row_id);
@@ -230,7 +245,7 @@ std::expected<QueryResult, QueryError> Database::execute(
     }
     for (const auto& record : *records) {
         if (bound->where &&
-            !execution::matches_predicate(record.row.values, *bound->where)) {
+            !matches_where_clause(record.row.values, *bound->where)) {
             continue;
         }
         auto erased = storage.erase(bound->table_id, record.record_id);
@@ -259,8 +274,7 @@ std::expected<QueryResult, QueryError> Database::execute(
 
         for (auto& record : *records) {
             if (bound->where &&
-                !execution::matches_predicate(record.row.values,
-                                              *bound->where)) {
+                !matches_where_clause(record.row.values, *bound->where)) {
                 continue;
             }
             apply_assignments(record.row, bound->assignments);
@@ -283,7 +297,7 @@ std::expected<QueryResult, QueryError> Database::execute(
     }
     for (auto& record : *records) {
         if (bound->where &&
-            !execution::matches_predicate(record.row.values, *bound->where)) {
+            !matches_where_clause(record.row.values, *bound->where)) {
             continue;
         }
         apply_assignments(record.row, bound->assignments);

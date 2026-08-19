@@ -20,7 +20,7 @@ struct PhysicalSequentialScan {
 struct PhysicalOneRow {};
 
 struct PhysicalFilter {
-    binder::BoundPredicate predicate;
+    binder::BoundExpression predicate;
     PhysicalPlanPtr child;
 };
 
@@ -40,7 +40,7 @@ struct PhysicalInMemorySort {
 };
 
 struct PhysicalProjection {
-    std::vector<binder::BoundSelectExpression> expressions;
+    std::vector<binder::BoundExpression> expressions;
     PhysicalPlanPtr child;
 };
 
