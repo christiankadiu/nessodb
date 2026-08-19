@@ -183,7 +183,8 @@ std::expected<BoundExpression, BindError> bind_predicate(
             bind_comparison_operator(comparison->comparison),
             std::make_unique<BoundExpression>(
                 BoundColumnReferenceExpression{
-                    column_index, comparison->column.location}),
+                    column_index, comparison->column.location,
+                    table.columns[column_index].type}),
             std::make_unique<BoundExpression>(std::move(*value))}};
     }
 
@@ -198,7 +199,8 @@ std::expected<BoundExpression, BindError> bind_predicate(
         return BoundExpression{BoundNullTestExpression{
             std::make_unique<BoundExpression>(
                 BoundColumnReferenceExpression{
-                    column_index, null_predicate->column.location}),
+                    column_index, null_predicate->column.location,
+                    table.columns[column_index].type}),
             null_predicate->negated}};
     }
 
@@ -286,7 +288,9 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 BindError{BindErrorCode::column_not_found, column->location});
         }
         bound_statement.expressions.emplace_back(
-            BoundColumnReferenceExpression{column_index, column->location});
+            BoundColumnReferenceExpression{
+                column_index, column->location,
+                table->columns[column_index].type});
     }
 
     if (statement.where) {

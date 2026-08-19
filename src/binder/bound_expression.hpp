@@ -1,10 +1,14 @@
 #pragma once
 
 #include "sql/token.hpp"
+#include "types/logical_type.hpp"
 #include "types/value.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -18,6 +22,7 @@ struct BoundLiteralExpression {
 struct BoundColumnReferenceExpression {
     std::size_t column_index;
     sql::SourceLocation location;
+    std::optional<types::LogicalType> value_type{};
 };
 
 enum class BoundComparisonOperator {
@@ -94,6 +99,24 @@ public:
 
     [[nodiscard]] BoundExpressionResultType result_type() const noexcept {
         return result_type_;
+    }
+
+    [[nodiscard]] std::optional<types::LogicalType> value_type() const noexcept {
+        if (const auto* literal =
+                std::get_if<BoundLiteralExpression>(&node)) {
+            if (std::holds_alternative<std::int64_t>(literal->value)) {
+                return types::LogicalType::integer;
+            }
+            if (std::holds_alternative<std::string>(literal->value)) {
+                return types::LogicalType::text;
+            }
+            return std::nullopt;
+        }
+        if (const auto* column =
+                std::get_if<BoundColumnReferenceExpression>(&node)) {
+            return column->value_type;
+        }
+        return std::nullopt;
     }
 
     BoundExpressionNode node;
