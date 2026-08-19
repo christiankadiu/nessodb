@@ -6,7 +6,9 @@
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -31,6 +33,27 @@ std::expected<types::Value, BindError> bind_integer(const sql::LiteralExpression
             BindError{BindErrorCode::invalid_integer_literal, expression.location});
     }
     return types::Value{value};
+}
+
+std::optional<std::int64_t> bind_minimum_integer(
+    const sql::LiteralExpression& expression) noexcept {
+    if (expression.type != sql::LiteralType::integer) {
+        return std::nullopt;
+    }
+
+    std::uint64_t magnitude{};
+    const char* const begin = expression.text.data();
+    const char* const end = begin + expression.text.size();
+    const auto result = std::from_chars(begin, end, magnitude);
+    constexpr std::uint64_t minimum_magnitude =
+        static_cast<std::uint64_t>(
+            std::numeric_limits<std::int64_t>::max()) +
+        std::uint64_t{1};
+    if (result.ec != std::errc{} || result.ptr != end ||
+        magnitude != minimum_magnitude) {
+        return std::nullopt;
+    }
+    return std::numeric_limits<std::int64_t>::min();
 }
 
 std::expected<std::size_t, BindError> bind_row_count(
@@ -223,6 +246,17 @@ std::expected<BoundExpression, BindError> bind_select_expression(
         if (!unary->operand) {
             throw std::logic_error{
                 "unary arithmetic expression requires an operand"};
+        }
+        if (unary->operation == sql::UnaryArithmeticOperator::minus) {
+            const auto* literal =
+                std::get_if<sql::LiteralExpression>(&unary->operand->node);
+            if (literal != nullptr) {
+                const auto minimum = bind_minimum_integer(*literal);
+                if (minimum) {
+                    return BoundExpression{BoundLiteralExpression{
+                        types::Value{*minimum}, literal->location}};
+                }
+            }
         }
         auto operand = bind_select_expression(*unary->operand, table);
         if (!operand) {
