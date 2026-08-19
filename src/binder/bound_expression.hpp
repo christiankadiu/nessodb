@@ -39,6 +39,18 @@ enum class BoundLogicalOperator {
     disjunction,
 };
 
+enum class BoundUnaryArithmeticOperator {
+    plus,
+    minus,
+};
+
+enum class BoundBinaryArithmeticOperator {
+    addition,
+    subtraction,
+    multiplication,
+    division,
+};
+
 enum class BoundExpressionResultType {
     value,
     boolean,
@@ -68,10 +80,25 @@ struct BoundNegationExpression {
     BoundExpressionPtr operand;
 };
 
+struct BoundUnaryArithmeticExpression {
+    BoundUnaryArithmeticOperator operation;
+    BoundExpressionPtr operand;
+    sql::SourceLocation location;
+};
+
+struct BoundBinaryArithmeticExpression {
+    BoundBinaryArithmeticOperator operation;
+    BoundExpressionPtr left;
+    BoundExpressionPtr right;
+    sql::SourceLocation location;
+};
+
 using BoundExpressionNode =
     std::variant<BoundLiteralExpression, BoundColumnReferenceExpression,
                  BoundComparisonExpression, BoundNullTestExpression,
-                 BoundLogicalExpression, BoundNegationExpression>;
+                 BoundLogicalExpression, BoundNegationExpression,
+                 BoundUnaryArithmeticExpression,
+                 BoundBinaryArithmeticExpression>;
 
 struct BoundExpression {
 private:
@@ -96,6 +123,12 @@ public:
     BoundExpression(BoundNegationExpression expression)
         : result_type_(BoundExpressionResultType::boolean),
           node(std::move(expression)) {}
+    BoundExpression(BoundUnaryArithmeticExpression expression)
+        : result_type_(BoundExpressionResultType::value),
+          node(std::move(expression)) {}
+    BoundExpression(BoundBinaryArithmeticExpression expression)
+        : result_type_(BoundExpressionResultType::value),
+          node(std::move(expression)) {}
 
     [[nodiscard]] BoundExpressionResultType result_type() const noexcept {
         return result_type_;
@@ -115,6 +148,10 @@ public:
         if (const auto* column =
                 std::get_if<BoundColumnReferenceExpression>(&node)) {
             return column->value_type;
+        }
+        if (std::holds_alternative<BoundUnaryArithmeticExpression>(node) ||
+            std::holds_alternative<BoundBinaryArithmeticExpression>(node)) {
+            return types::LogicalType::integer;
         }
         return std::nullopt;
     }

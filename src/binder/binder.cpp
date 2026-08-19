@@ -142,6 +142,134 @@ BoundLogicalOperator bind_logical_operator(
     return BoundLogicalOperator::conjunction;
 }
 
+BoundUnaryArithmeticOperator bind_unary_arithmetic_operator(
+    sql::UnaryArithmeticOperator operation) noexcept {
+    return operation == sql::UnaryArithmeticOperator::plus
+               ? BoundUnaryArithmeticOperator::plus
+               : BoundUnaryArithmeticOperator::minus;
+}
+
+BoundBinaryArithmeticOperator bind_binary_arithmetic_operator(
+    sql::BinaryArithmeticOperator operation) noexcept {
+    switch (operation) {
+        case sql::BinaryArithmeticOperator::addition:
+            return BoundBinaryArithmeticOperator::addition;
+        case sql::BinaryArithmeticOperator::subtraction:
+            return BoundBinaryArithmeticOperator::subtraction;
+        case sql::BinaryArithmeticOperator::multiplication:
+            return BoundBinaryArithmeticOperator::multiplication;
+        case sql::BinaryArithmeticOperator::division:
+            return BoundBinaryArithmeticOperator::division;
+    }
+    return BoundBinaryArithmeticOperator::addition;
+}
+
+const sql::SourceLocation& select_expression_location(
+    const sql::SelectExpression& expression) noexcept {
+    if (const auto* literal =
+            std::get_if<sql::LiteralExpression>(&expression.node)) {
+        return literal->location;
+    }
+    if (const auto* column =
+            std::get_if<sql::ColumnReferenceExpression>(&expression.node)) {
+        return column->location;
+    }
+    if (const auto* unary =
+            std::get_if<sql::UnaryArithmeticExpression>(&expression.node)) {
+        return unary->location;
+    }
+    return std::get<sql::BinaryArithmeticExpression>(expression.node).location;
+}
+
+bool is_integer_expression(const BoundExpression& expression) noexcept {
+    if (expression.result_type() != BoundExpressionResultType::value) {
+        return false;
+    }
+    const auto type = expression.value_type();
+    return !type || *type == types::LogicalType::integer;
+}
+
+std::expected<BoundExpression, BindError> bind_select_expression(
+    const sql::SelectExpression& expression,
+    const catalog::TableSchema* table) {
+    if (const auto* literal =
+            std::get_if<sql::LiteralExpression>(&expression.node)) {
+        auto bound = bind_literal(*literal);
+        if (!bound) {
+            return std::unexpected(bound.error());
+        }
+        return BoundExpression{std::move(*bound)};
+    }
+
+    if (const auto* column =
+            std::get_if<sql::ColumnReferenceExpression>(&expression.node)) {
+        if (table == nullptr) {
+            return std::unexpected(BindError{
+                BindErrorCode::column_requires_table, column->location});
+        }
+        const std::size_t column_index =
+            find_column_index(*table, column->name);
+        if (column_index == table->columns.size()) {
+            return std::unexpected(BindError{
+                BindErrorCode::column_not_found, column->location});
+        }
+        return BoundExpression{BoundColumnReferenceExpression{
+            column_index, column->location,
+            table->columns[column_index].type}};
+    }
+
+    if (const auto* unary =
+            std::get_if<sql::UnaryArithmeticExpression>(&expression.node)) {
+        if (!unary->operand) {
+            throw std::logic_error{
+                "unary arithmetic expression requires an operand"};
+        }
+        auto operand = bind_select_expression(*unary->operand, table);
+        if (!operand) {
+            return std::unexpected(operand.error());
+        }
+        if (!is_integer_expression(*operand)) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                select_expression_location(*unary->operand)});
+        }
+        return BoundExpression{BoundUnaryArithmeticExpression{
+            bind_unary_arithmetic_operator(unary->operation),
+            std::make_unique<BoundExpression>(std::move(*operand)),
+            unary->location}};
+    }
+
+    const auto& binary =
+        std::get<sql::BinaryArithmeticExpression>(expression.node);
+    if (!binary.left || !binary.right) {
+        throw std::logic_error{
+            "binary arithmetic expression requires two operands"};
+    }
+    auto left = bind_select_expression(*binary.left, table);
+    if (!left) {
+        return std::unexpected(left.error());
+    }
+    if (!is_integer_expression(*left)) {
+        return std::unexpected(BindError{
+            BindErrorCode::type_mismatch,
+            select_expression_location(*binary.left)});
+    }
+    auto right = bind_select_expression(*binary.right, table);
+    if (!right) {
+        return std::unexpected(right.error());
+    }
+    if (!is_integer_expression(*right)) {
+        return std::unexpected(BindError{
+            BindErrorCode::type_mismatch,
+            select_expression_location(*binary.right)});
+    }
+    return BoundExpression{BoundBinaryArithmeticExpression{
+        bind_binary_arithmetic_operator(binary.operation),
+        std::make_unique<BoundExpression>(std::move(*left)),
+        std::make_unique<BoundExpression>(std::move(*right)),
+        binary.location}};
+}
+
 const sql::SourceLocation& predicate_location(
     const sql::Predicate& predicate) noexcept {
     if (const auto* comparison =
@@ -258,39 +386,12 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     bound_statement.expressions.reserve(statement.expressions.size());
 
     for (const auto& expression : statement.expressions) {
-        if (const auto* literal =
-                std::get_if<sql::LiteralExpression>(&expression.node)) {
-            auto bound_expression = bind_literal(*literal);
-            if (!bound_expression) {
-                return std::unexpected(bound_expression.error());
-            }
-            bound_statement.expressions.emplace_back(
-                std::move(*bound_expression));
-            continue;
+        auto bound_expression = bind_select_expression(expression, table);
+        if (!bound_expression) {
+            return std::unexpected(bound_expression.error());
         }
-
-        const auto* column =
-            std::get_if<sql::ColumnReferenceExpression>(&expression.node);
-        if (column == nullptr) {
-            throw std::logic_error{
-                "select expression is not a bindable leaf"};
-        }
-        if (table == nullptr) {
-            return std::unexpected(
-                BindError{BindErrorCode::column_requires_table,
-                          column->location});
-        }
-
-        const std::size_t column_index =
-            find_column_index(*table, column->name);
-        if (column_index == table->columns.size()) {
-            return std::unexpected(
-                BindError{BindErrorCode::column_not_found, column->location});
-        }
-        bound_statement.expressions.emplace_back(
-            BoundColumnReferenceExpression{
-                column_index, column->location,
-                table->columns[column_index].type});
+        bound_statement.expressions.push_back(
+            std::move(*bound_expression));
     }
 
     if (statement.where) {
