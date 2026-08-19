@@ -27,8 +27,50 @@ struct ColumnReferenceExpression {
     SourceLocation location;
 };
 
-using SelectExpression =
-    std::variant<LiteralExpression, ColumnReferenceExpression>;
+enum class UnaryArithmeticOperator {
+    plus,
+    minus,
+};
+
+enum class BinaryArithmeticOperator {
+    addition,
+    subtraction,
+    multiplication,
+    division,
+};
+
+struct SelectExpression;
+using SelectExpressionPtr = std::unique_ptr<SelectExpression>;
+
+struct UnaryArithmeticExpression {
+    UnaryArithmeticOperator operation;
+    SelectExpressionPtr operand;
+    SourceLocation location;
+};
+
+struct BinaryArithmeticExpression {
+    BinaryArithmeticOperator operation;
+    SelectExpressionPtr left;
+    SelectExpressionPtr right;
+    SourceLocation location;
+};
+
+using SelectExpressionNode =
+    std::variant<LiteralExpression, ColumnReferenceExpression,
+                 UnaryArithmeticExpression, BinaryArithmeticExpression>;
+
+struct SelectExpression {
+    SelectExpression(LiteralExpression expression)
+        : node(std::move(expression)) {}
+    SelectExpression(ColumnReferenceExpression expression)
+        : node(std::move(expression)) {}
+    SelectExpression(UnaryArithmeticExpression expression)
+        : node(std::move(expression)) {}
+    SelectExpression(BinaryArithmeticExpression expression)
+        : node(std::move(expression)) {}
+
+    SelectExpressionNode node;
+};
 
 struct TableReference {
     std::string_view name;

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -256,7 +257,7 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
 
     for (const auto& expression : statement.expressions) {
         if (const auto* literal =
-                std::get_if<sql::LiteralExpression>(&expression)) {
+                std::get_if<sql::LiteralExpression>(&expression.node)) {
             auto bound_expression = bind_literal(*literal);
             if (!bound_expression) {
                 return std::unexpected(bound_expression.error());
@@ -266,22 +267,26 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
             continue;
         }
 
-        const auto& column =
-            std::get<sql::ColumnReferenceExpression>(expression);
+        const auto* column =
+            std::get_if<sql::ColumnReferenceExpression>(&expression.node);
+        if (column == nullptr) {
+            throw std::logic_error{
+                "select expression is not a bindable leaf"};
+        }
         if (table == nullptr) {
             return std::unexpected(
                 BindError{BindErrorCode::column_requires_table,
-                          column.location});
+                          column->location});
         }
 
         const std::size_t column_index =
-            find_column_index(*table, column.name);
+            find_column_index(*table, column->name);
         if (column_index == table->columns.size()) {
             return std::unexpected(
-                BindError{BindErrorCode::column_not_found, column.location});
+                BindError{BindErrorCode::column_not_found, column->location});
         }
         bound_statement.expressions.emplace_back(
-            BoundColumnReferenceExpression{column_index, column.location});
+            BoundColumnReferenceExpression{column_index, column->location});
     }
 
     if (statement.where) {
