@@ -59,6 +59,11 @@ using SelectExpressionNode =
     std::variant<LiteralExpression, ColumnReferenceExpression,
                  UnaryArithmeticExpression, BinaryArithmeticExpression>;
 
+struct ExpressionAlias {
+    std::string_view name;
+    SourceLocation location;
+};
+
 struct SelectExpression {
     SelectExpression(LiteralExpression expression)
         : node(std::move(expression)) {}
@@ -70,6 +75,7 @@ struct SelectExpression {
         : node(std::move(expression)) {}
 
     SelectExpressionNode node;
+    std::optional<ExpressionAlias> alias;
 };
 
 struct TableReference {

@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <expected>
+#include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -18,6 +19,7 @@ struct ResultRow {
 };
 
 struct QueryResult {
+    std::vector<std::string> column_names;
     std::vector<ResultRow> rows;
     std::size_t rows_affected{};
 };

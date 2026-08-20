@@ -418,11 +418,32 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         bound_statement.table_id = table->id;
     }
     bound_statement.expressions.reserve(statement.expressions.size());
+    bound_statement.result_column_names.reserve(
+        statement.select_all_columns && table != nullptr
+            ? table->columns.size()
+            : statement.expressions.size());
+
+    if (statement.select_all_columns) {
+        for (const auto& column : table->columns) {
+            bound_statement.result_column_names.push_back(column.name);
+        }
+    }
 
     for (const auto& expression : statement.expressions) {
         auto bound_expression = bind_select_expression(expression, table);
         if (!bound_expression) {
             return std::unexpected(bound_expression.error());
+        }
+        if (expression.alias) {
+            bound_statement.result_column_names.emplace_back(
+                expression.alias->name);
+        } else if (const auto* column =
+                       std::get_if<BoundColumnReferenceExpression>(
+                           &bound_expression->node)) {
+            bound_statement.result_column_names.push_back(
+                table->columns[column->column_index].name);
+        } else {
+            bound_statement.result_column_names.emplace_back("?column?");
         }
         bound_statement.expressions.push_back(
             std::move(*bound_expression));
