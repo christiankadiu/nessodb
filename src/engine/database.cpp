@@ -112,6 +112,8 @@ std::expected<QueryResult, QueryError> Database::execute(
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
     }
+    auto result_column_names =
+        std::move(bound->result_column_names);
 
     std::vector<storage::Row> stored_rows;
     if (bound->table_id.is_valid()) {
@@ -139,6 +141,7 @@ std::expected<QueryResult, QueryError> Database::execute(
             execution_error(selected_rows.error())});
     }
     QueryResult result;
+    result.column_names = std::move(result_column_names);
     result.rows.reserve(selected_rows->size());
     for (auto& row : *selected_rows) {
         result.rows.push_back(ResultRow{std::move(row.values)});
@@ -158,6 +161,7 @@ std::expected<QueryResult, QueryError> Database::execute(
     auto lines = planner::format_physical_plan(*physical_plan);
 
     QueryResult result;
+    result.column_names.emplace_back("QUERY PLAN");
     result.rows.reserve(lines.size());
     for (auto& line : lines) {
         ResultRow row;
@@ -226,7 +230,9 @@ std::expected<QueryResult, QueryError> Database::execute(
                 std::move(inserted.error())}});
         }
     }
-    return QueryResult{{}, 1};
+    QueryResult result;
+    result.rows_affected = 1;
+    return result;
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
