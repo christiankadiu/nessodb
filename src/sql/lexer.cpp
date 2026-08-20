@@ -53,8 +53,17 @@ std::expected<Token, LexError> Lexer::next() {
     if (character == ',') {
         return make_token(TokenType::comma, start);
     }
+    if (character == '+') {
+        return make_token(TokenType::plus, start);
+    }
+    if (character == '-') {
+        return make_token(TokenType::minus, start);
+    }
     if (character == '*') {
         return make_token(TokenType::star, start);
+    }
+    if (character == '/') {
+        return make_token(TokenType::slash, start);
     }
     if (character == '=') {
         return make_token(TokenType::equal, start);

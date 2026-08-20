@@ -129,15 +129,29 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 
     SelectStatement statement;
-    token = next_token();
-    if (token && token->type == TokenType::distinct) {
+    token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type == TokenType::distinct) {
         statement.distinct = true;
-        token = next_token();
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+        token = peek_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
     }
 
-    if (token && token->type == TokenType::star) {
+    if (token->type == TokenType::star) {
         statement.select_all_columns = true;
 
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
         token = next_token();
         if (!token) {
             return std::unexpected(token.error());
@@ -166,20 +180,11 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 
     while (true) {
-        if (!token) {
-            return std::unexpected(token.error());
+        auto expression = parse_select_expression();
+        if (!expression) {
+            return std::unexpected(expression.error());
         }
-        if (is_literal(token->type)) {
-            statement.expressions.emplace_back(
-                LiteralExpression{literal_type(token->type), token->lexeme,
-                                  token->location});
-        } else if (token->type == TokenType::identifier) {
-            statement.expressions.emplace_back(
-                ColumnReferenceExpression{token->lexeme, token->location});
-        } else {
-            return std::unexpected(
-                ParseError{ParseErrorCode::expected_expression, token->location});
-        }
+        statement.expressions.push_back(std::move(*expression));
 
         auto delimiter = next_token();
         if (!delimiter) {
@@ -187,7 +192,6 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         }
 
         if (delimiter->type == TokenType::comma) {
-            token = next_token();
             continue;
         }
         if (delimiter->type == TokenType::from) {
@@ -251,6 +255,149 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         }
         return statement;
     }
+}
+
+std::expected<SelectExpression, ParseError>
+Parser::parse_select_expression() {
+    return parse_additive_expression();
+}
+
+std::expected<SelectExpression, ParseError>
+Parser::parse_additive_expression() {
+    auto expression = parse_multiplicative_expression();
+    if (!expression) {
+        return std::unexpected(expression.error());
+    }
+
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    while (token->type == TokenType::plus ||
+           token->type == TokenType::minus) {
+        const Token operation = *token;
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+        auto right = parse_multiplicative_expression();
+        if (!right) {
+            return std::unexpected(right.error());
+        }
+        expression = SelectExpression{BinaryArithmeticExpression{
+            operation.type == TokenType::plus
+                ? BinaryArithmeticOperator::addition
+                : BinaryArithmeticOperator::subtraction,
+            std::make_unique<SelectExpression>(std::move(*expression)),
+            std::make_unique<SelectExpression>(std::move(*right)),
+            operation.location}};
+
+        token = peek_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    return expression;
+}
+
+std::expected<SelectExpression, ParseError>
+Parser::parse_multiplicative_expression() {
+    auto expression = parse_unary_expression();
+    if (!expression) {
+        return std::unexpected(expression.error());
+    }
+
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    while (token->type == TokenType::star ||
+           token->type == TokenType::slash) {
+        const Token operation = *token;
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+        auto right = parse_unary_expression();
+        if (!right) {
+            return std::unexpected(right.error());
+        }
+        expression = SelectExpression{BinaryArithmeticExpression{
+            operation.type == TokenType::star
+                ? BinaryArithmeticOperator::multiplication
+                : BinaryArithmeticOperator::division,
+            std::make_unique<SelectExpression>(std::move(*expression)),
+            std::make_unique<SelectExpression>(std::move(*right)),
+            operation.location}};
+
+        token = peek_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    return expression;
+}
+
+std::expected<SelectExpression, ParseError>
+Parser::parse_unary_expression() {
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::plus &&
+        token->type != TokenType::minus) {
+        return parse_primary_expression();
+    }
+
+    const Token operation = *token;
+    auto consumed = next_token();
+    if (!consumed) {
+        return std::unexpected(consumed.error());
+    }
+    auto operand = parse_unary_expression();
+    if (!operand) {
+        return std::unexpected(operand.error());
+    }
+    return SelectExpression{UnaryArithmeticExpression{
+        operation.type == TokenType::plus
+            ? UnaryArithmeticOperator::plus
+            : UnaryArithmeticOperator::minus,
+        std::make_unique<SelectExpression>(std::move(*operand)),
+        operation.location}};
+}
+
+std::expected<SelectExpression, ParseError>
+Parser::parse_primary_expression() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (is_literal(token->type)) {
+        return SelectExpression{LiteralExpression{
+            literal_type(token->type), token->lexeme, token->location}};
+    }
+    if (token->type == TokenType::identifier) {
+        return SelectExpression{ColumnReferenceExpression{
+            token->lexeme, token->location}};
+    }
+    if (token->type != TokenType::left_parenthesis) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_expression, token->location});
+    }
+
+    auto expression = parse_select_expression();
+    if (!expression) {
+        return std::unexpected(expression.error());
+    }
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::right_parenthesis) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_right_parenthesis, token->location});
+    }
+    return expression;
 }
 
 std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
