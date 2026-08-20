@@ -48,6 +48,7 @@ enum class TokenType {
     greater,
     greater_equal,
     comma,
+    dot,
     semicolon,
     left_parenthesis,
     right_parenthesis,

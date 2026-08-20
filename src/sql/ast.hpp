@@ -22,9 +22,15 @@ struct LiteralExpression {
     SourceLocation location;
 };
 
+struct ColumnQualifier {
+    std::string_view name;
+    SourceLocation location;
+};
+
 struct ColumnReferenceExpression {
     std::string_view name;
     SourceLocation location;
+    std::optional<ColumnQualifier> qualifier{};
 };
 
 enum class UnaryArithmeticOperator {
