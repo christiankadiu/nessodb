@@ -23,6 +23,7 @@ enum class TokenType {
     order,
     by,
     asc,
+    as_keyword,
     desc,
     limit,
     offset,

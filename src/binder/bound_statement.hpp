@@ -25,6 +25,7 @@ struct BoundOrderByTerm {
 
 struct BoundSelectStatement {
     std::vector<BoundExpression> expressions;
+    std::vector<std::string> result_column_names;
     common::TableId table_id;
     bool distinct{};
     std::optional<BoundExpression> where;

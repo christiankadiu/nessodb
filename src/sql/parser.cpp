@@ -184,12 +184,29 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         if (!expression) {
             return std::unexpected(expression.error());
         }
-        statement.expressions.push_back(std::move(*expression));
 
         auto delimiter = next_token();
         if (!delimiter) {
             return std::unexpected(delimiter.error());
         }
+        if (delimiter->type == TokenType::as_keyword) {
+            auto alias = next_token();
+            if (!alias) {
+                return std::unexpected(alias.error());
+            }
+            if (alias->type != TokenType::identifier) {
+                return std::unexpected(ParseError{
+                    ParseErrorCode::expected_identifier,
+                    alias->location});
+            }
+            expression->alias = ExpressionAlias{
+                alias->lexeme, alias->location};
+            delimiter = next_token();
+            if (!delimiter) {
+                return std::unexpected(delimiter.error());
+            }
+        }
+        statement.expressions.push_back(std::move(*expression));
 
         if (delimiter->type == TokenType::comma) {
             continue;
