@@ -180,7 +180,7 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 
     while (true) {
-        auto expression = parse_select_expression();
+        auto expression = parse_expression();
         if (!expression) {
             return std::unexpected(expression.error());
         }
@@ -274,12 +274,12 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
     }
 }
 
-std::expected<SelectExpression, ParseError>
-Parser::parse_select_expression() {
-    return parse_additive_expression();
+std::expected<Expression, ParseError>
+Parser::parse_expression() {
+    return parse_disjunction_expression();
 }
 
-std::expected<SelectExpression, ParseError>
+std::expected<Expression, ParseError>
 Parser::parse_additive_expression() {
     auto expression = parse_multiplicative_expression();
     if (!expression) {
@@ -301,12 +301,12 @@ Parser::parse_additive_expression() {
         if (!right) {
             return std::unexpected(right.error());
         }
-        expression = SelectExpression{BinaryArithmeticExpression{
+        expression = Expression{BinaryArithmeticExpression{
             operation.type == TokenType::plus
                 ? BinaryArithmeticOperator::addition
                 : BinaryArithmeticOperator::subtraction,
-            std::make_unique<SelectExpression>(std::move(*expression)),
-            std::make_unique<SelectExpression>(std::move(*right)),
+            std::make_unique<Expression>(std::move(*expression)),
+            std::make_unique<Expression>(std::move(*right)),
             operation.location}};
 
         token = peek_token();
@@ -317,7 +317,7 @@ Parser::parse_additive_expression() {
     return expression;
 }
 
-std::expected<SelectExpression, ParseError>
+std::expected<Expression, ParseError>
 Parser::parse_multiplicative_expression() {
     auto expression = parse_unary_expression();
     if (!expression) {
@@ -339,12 +339,12 @@ Parser::parse_multiplicative_expression() {
         if (!right) {
             return std::unexpected(right.error());
         }
-        expression = SelectExpression{BinaryArithmeticExpression{
+        expression = Expression{BinaryArithmeticExpression{
             operation.type == TokenType::star
                 ? BinaryArithmeticOperator::multiplication
                 : BinaryArithmeticOperator::division,
-            std::make_unique<SelectExpression>(std::move(*expression)),
-            std::make_unique<SelectExpression>(std::move(*right)),
+            std::make_unique<Expression>(std::move(*expression)),
+            std::make_unique<Expression>(std::move(*right)),
             operation.location}};
 
         token = peek_token();
@@ -355,7 +355,7 @@ Parser::parse_multiplicative_expression() {
     return expression;
 }
 
-std::expected<SelectExpression, ParseError>
+std::expected<Expression, ParseError>
 Parser::parse_unary_expression() {
     auto token = peek_token();
     if (!token) {
@@ -375,22 +375,22 @@ Parser::parse_unary_expression() {
     if (!operand) {
         return std::unexpected(operand.error());
     }
-    return SelectExpression{UnaryArithmeticExpression{
+    return Expression{UnaryArithmeticExpression{
         operation.type == TokenType::plus
             ? UnaryArithmeticOperator::plus
             : UnaryArithmeticOperator::minus,
-        std::make_unique<SelectExpression>(std::move(*operand)),
+        std::make_unique<Expression>(std::move(*operand)),
         operation.location}};
 }
 
-std::expected<SelectExpression, ParseError>
+std::expected<Expression, ParseError>
 Parser::parse_primary_expression() {
     auto token = next_token();
     if (!token) {
         return std::unexpected(token.error());
     }
     if (is_literal(token->type)) {
-        return SelectExpression{LiteralExpression{
+        return Expression{LiteralExpression{
             literal_type(token->type), token->lexeme, token->location}};
     }
     if (token->type == TokenType::identifier) {
@@ -398,14 +398,14 @@ Parser::parse_primary_expression() {
         if (!column) {
             return std::unexpected(column.error());
         }
-        return SelectExpression{std::move(*column)};
+        return Expression{std::move(*column)};
     }
     if (token->type != TokenType::left_parenthesis) {
         return std::unexpected(ParseError{
             ParseErrorCode::expected_expression, token->location});
     }
 
-    auto expression = parse_select_expression();
+    auto expression = parse_expression();
     if (!expression) {
         return std::unexpected(expression.error());
     }
@@ -449,79 +449,47 @@ Parser::parse_column_reference(Token first_identifier) {
                         first_identifier.location}};
 }
 
-std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
-    auto token = next_token();
+std::expected<Expression, ParseError>
+Parser::parse_comparison_expression() {
+    auto expression = parse_additive_expression();
+    if (!expression) {
+        return std::unexpected(expression.error());
+    }
+
+    auto token = peek_token();
     if (!token) {
         return std::unexpected(token.error());
     }
-
-    if (token->type == TokenType::not_keyword) {
-        auto operand = parse_primary_predicate();
-        if (!operand) {
-            return std::unexpected(operand.error());
-        }
-        return Predicate{std::make_unique<NegationPredicate>(
-            NegationPredicate{std::move(*operand)})};
-    }
-
-    if (token->type == TokenType::left_parenthesis) {
-        auto predicate = parse_predicate();
-        if (!predicate) {
-            return std::unexpected(predicate.error());
-        }
-
-        token = next_token();
-        if (!token) {
-            return std::unexpected(token.error());
-        }
-        if (token->type != TokenType::right_parenthesis) {
-            return std::unexpected(ParseError{
-                ParseErrorCode::expected_right_parenthesis, token->location});
-        }
-        return predicate;
-    }
-
-    if (token->type != TokenType::identifier) {
-        return std::unexpected(
-            ParseError{ParseErrorCode::expected_identifier, token->location});
-    }
-    auto column = parse_column_reference(*token);
-    if (!column) {
-        return std::unexpected(column.error());
-    }
-
-    token = next_token();
-    if (!token) {
-        return std::unexpected(token.error());
-    }
-
     if (is_comparison_operator(token->type)) {
-        const ComparisonOperator comparison = comparison_operator(token->type);
-
-        token = next_token();
-        if (!token) {
-            return std::unexpected(token.error());
+        const Token operation = *token;
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
         }
-        if (!is_literal(token->type)) {
-            return std::unexpected(
-                ParseError{ParseErrorCode::expected_literal, token->location});
+        auto right = parse_additive_expression();
+        if (!right) {
+            return std::unexpected(right.error());
         }
-        return Predicate{ComparisonPredicate{
-            std::move(*column), comparison,
-            LiteralExpression{literal_type(token->type), token->lexeme,
-                              token->location}}};
+        return Expression{ComparisonExpression{
+            comparison_operator(operation.type),
+            std::make_unique<Expression>(std::move(*expression)),
+            std::make_unique<Expression>(std::move(*right)),
+            operation.location}};
     }
 
     if (token->type != TokenType::is) {
-        return std::unexpected(ParseError{
-            ParseErrorCode::expected_predicate_operator, token->location});
+        return expression;
     }
 
+    const Token operation = *token;
+    auto consumed = next_token();
+    if (!consumed) {
+        return std::unexpected(consumed.error());
+    }
     token = next_token();
     if (!token) {
         return std::unexpected(token.error());
     }
-
     bool negated = false;
     if (token->type == TokenType::not_keyword) {
         negated = true;
@@ -534,13 +502,40 @@ std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
         return std::unexpected(
             ParseError{ParseErrorCode::expected_null, token->location});
     }
-    return Predicate{NullPredicate{std::move(*column), negated}};
+    return Expression{NullTestExpression{
+        std::make_unique<Expression>(std::move(*expression)), negated,
+        operation.location}};
 }
 
-std::expected<Predicate, ParseError> Parser::parse_conjunction() {
-    auto predicate = parse_primary_predicate();
-    if (!predicate) {
-        return std::unexpected(predicate.error());
+std::expected<Expression, ParseError>
+Parser::parse_negation_expression() {
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::not_keyword) {
+        return parse_comparison_expression();
+    }
+
+    const Token operation = *token;
+    auto consumed = next_token();
+    if (!consumed) {
+        return std::unexpected(consumed.error());
+    }
+    auto operand = parse_negation_expression();
+    if (!operand) {
+        return std::unexpected(operand.error());
+    }
+    return Expression{NegationExpression{
+        std::make_unique<Expression>(std::move(*operand)),
+        operation.location}};
+}
+
+std::expected<Expression, ParseError>
+Parser::parse_conjunction_expression() {
+    auto expression = parse_negation_expression();
+    if (!expression) {
+        return std::unexpected(expression.error());
     }
 
     auto token = peek_token();
@@ -548,31 +543,35 @@ std::expected<Predicate, ParseError> Parser::parse_conjunction() {
         return std::unexpected(token.error());
     }
     while (token->type == TokenType::and_keyword) {
+        const Token operation = *token;
         auto consumed = next_token();
         if (!consumed) {
             return std::unexpected(consumed.error());
         }
 
-        auto right = parse_primary_predicate();
+        auto right = parse_negation_expression();
         if (!right) {
             return std::unexpected(right.error());
         }
-        predicate = Predicate{std::make_unique<LogicalPredicate>(
-            LogicalPredicate{LogicalOperator::conjunction,
-                             std::move(*predicate), std::move(*right)})};
+        expression = Expression{LogicalExpression{
+            LogicalOperator::conjunction,
+            std::make_unique<Expression>(std::move(*expression)),
+            std::make_unique<Expression>(std::move(*right)),
+            operation.location}};
 
         token = peek_token();
         if (!token) {
             return std::unexpected(token.error());
         }
     }
-    return predicate;
+    return expression;
 }
 
-std::expected<Predicate, ParseError> Parser::parse_predicate() {
-    auto predicate = parse_conjunction();
-    if (!predicate) {
-        return std::unexpected(predicate.error());
+std::expected<Expression, ParseError>
+Parser::parse_disjunction_expression() {
+    auto expression = parse_conjunction_expression();
+    if (!expression) {
+        return std::unexpected(expression.error());
     }
 
     auto token = peek_token();
@@ -580,25 +579,28 @@ std::expected<Predicate, ParseError> Parser::parse_predicate() {
         return std::unexpected(token.error());
     }
     while (token->type == TokenType::or_keyword) {
+        const Token operation = *token;
         auto consumed = next_token();
         if (!consumed) {
             return std::unexpected(consumed.error());
         }
 
-        auto right = parse_conjunction();
+        auto right = parse_conjunction_expression();
         if (!right) {
             return std::unexpected(right.error());
         }
-        predicate = Predicate{std::make_unique<LogicalPredicate>(
-            LogicalPredicate{LogicalOperator::disjunction,
-                             std::move(*predicate), std::move(*right)})};
+        expression = Expression{LogicalExpression{
+            LogicalOperator::disjunction,
+            std::make_unique<Expression>(std::move(*expression)),
+            std::make_unique<Expression>(std::move(*right)),
+            operation.location}};
 
         token = peek_token();
         if (!token) {
             return std::unexpected(token.error());
         }
     }
-    return predicate;
+    return expression;
 }
 
 std::expected<LimitClause, ParseError> Parser::parse_limit_clause() {
@@ -626,7 +628,7 @@ std::expected<OffsetClause, ParseError> Parser::parse_offset_clause() {
 }
 
 std::expected<void, ParseError> Parser::parse_table_statement_tail(
-    std::optional<Predicate>& where, std::vector<OrderByTerm>* order_by,
+    std::optional<Expression>& where, std::vector<OrderByTerm>* order_by,
     std::optional<LimitClause>* limit,
     std::optional<OffsetClause>* offset) {
     auto token = next_token();
@@ -635,15 +637,15 @@ std::expected<void, ParseError> Parser::parse_table_statement_tail(
     }
 
     if (token->type == TokenType::where) {
-        auto predicate = parse_predicate();
-        if (!predicate) {
-            return std::unexpected(predicate.error());
+        auto expression = parse_expression();
+        if (!expression) {
+            return std::unexpected(expression.error());
         }
         token = next_token();
         if (!token) {
             return std::unexpected(token.error());
         }
-        where = std::move(*predicate);
+        where = std::move(*expression);
     }
 
     if (token->type == TokenType::order && order_by != nullptr) {

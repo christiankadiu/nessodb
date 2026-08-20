@@ -61,25 +61,30 @@ public:
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
     [[nodiscard]] std::expected<Token, ParseError> peek_token();
-    [[nodiscard]] std::expected<SelectExpression, ParseError>
-    parse_select_expression();
-    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    [[nodiscard]] std::expected<Expression, ParseError>
+    parse_expression();
+    [[nodiscard]] std::expected<Expression, ParseError>
+    parse_disjunction_expression();
+    [[nodiscard]] std::expected<Expression, ParseError>
+    parse_conjunction_expression();
+    [[nodiscard]] std::expected<Expression, ParseError>
+    parse_negation_expression();
+    [[nodiscard]] std::expected<Expression, ParseError>
+    parse_comparison_expression();
+    [[nodiscard]] std::expected<Expression, ParseError>
     parse_additive_expression();
-    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    [[nodiscard]] std::expected<Expression, ParseError>
     parse_multiplicative_expression();
-    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    [[nodiscard]] std::expected<Expression, ParseError>
     parse_unary_expression();
-    [[nodiscard]] std::expected<SelectExpression, ParseError>
+    [[nodiscard]] std::expected<Expression, ParseError>
     parse_primary_expression();
     [[nodiscard]] std::expected<ColumnReferenceExpression, ParseError>
     parse_column_reference(Token first_identifier);
-    [[nodiscard]] std::expected<Predicate, ParseError> parse_predicate();
-    [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
-    [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();
     [[nodiscard]] std::expected<LimitClause, ParseError> parse_limit_clause();
     [[nodiscard]] std::expected<OffsetClause, ParseError> parse_offset_clause();
     [[nodiscard]] std::expected<void, ParseError> parse_table_statement_tail(
-        std::optional<Predicate>& where,
+        std::optional<Expression>& where,
         std::vector<OrderByTerm>* order_by = nullptr,
         std::optional<LimitClause>* limit = nullptr,
         std::optional<OffsetClause>* offset = nullptr);
