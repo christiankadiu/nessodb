@@ -53,6 +53,9 @@ std::expected<Token, LexError> Lexer::next() {
     if (character == ',') {
         return make_token(TokenType::comma, start);
     }
+    if (character == '.') {
+        return make_token(TokenType::dot, start);
+    }
     if (character == '+') {
         return make_token(TokenType::plus, start);
     }

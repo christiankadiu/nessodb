@@ -71,6 +71,8 @@ private:
     parse_unary_expression();
     [[nodiscard]] std::expected<SelectExpression, ParseError>
     parse_primary_expression();
+    [[nodiscard]] std::expected<ColumnReferenceExpression, ParseError>
+    parse_column_reference(Token first_identifier);
     [[nodiscard]] std::expected<Predicate, ParseError> parse_predicate();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_conjunction();
     [[nodiscard]] std::expected<Predicate, ParseError> parse_primary_predicate();

@@ -394,8 +394,11 @@ Parser::parse_primary_expression() {
             literal_type(token->type), token->lexeme, token->location}};
     }
     if (token->type == TokenType::identifier) {
-        return SelectExpression{ColumnReferenceExpression{
-            token->lexeme, token->location}};
+        auto column = parse_column_reference(*token);
+        if (!column) {
+            return std::unexpected(column.error());
+        }
+        return SelectExpression{std::move(*column)};
     }
     if (token->type != TokenType::left_parenthesis) {
         return std::unexpected(ParseError{
@@ -415,6 +418,35 @@ Parser::parse_primary_expression() {
             ParseErrorCode::expected_right_parenthesis, token->location});
     }
     return expression;
+}
+
+std::expected<ColumnReferenceExpression, ParseError>
+Parser::parse_column_reference(Token first_identifier) {
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::dot) {
+        return ColumnReferenceExpression{
+            first_identifier.lexeme, first_identifier.location};
+    }
+
+    auto dot = next_token();
+    if (!dot) {
+        return std::unexpected(dot.error());
+    }
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::identifier) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_identifier, token->location});
+    }
+    return ColumnReferenceExpression{
+        token->lexeme, token->location,
+        ColumnQualifier{first_identifier.lexeme,
+                        first_identifier.location}};
 }
 
 std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
@@ -453,7 +485,10 @@ std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
         return std::unexpected(
             ParseError{ParseErrorCode::expected_identifier, token->location});
     }
-    const ColumnReferenceExpression column{token->lexeme, token->location};
+    auto column = parse_column_reference(*token);
+    if (!column) {
+        return std::unexpected(column.error());
+    }
 
     token = next_token();
     if (!token) {
@@ -472,7 +507,7 @@ std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
                 ParseError{ParseErrorCode::expected_literal, token->location});
         }
         return Predicate{ComparisonPredicate{
-            column, comparison,
+            std::move(*column), comparison,
             LiteralExpression{literal_type(token->type), token->lexeme,
                               token->location}}};
     }
@@ -499,7 +534,7 @@ std::expected<Predicate, ParseError> Parser::parse_primary_predicate() {
         return std::unexpected(
             ParseError{ParseErrorCode::expected_null, token->location});
     }
-    return Predicate{NullPredicate{column, negated}};
+    return Predicate{NullPredicate{std::move(*column), negated}};
 }
 
 std::expected<Predicate, ParseError> Parser::parse_conjunction() {
@@ -631,9 +666,12 @@ std::expected<void, ParseError> Parser::parse_table_statement_tail(
                     ParseErrorCode::expected_identifier, token->location});
             }
 
-            OrderByTerm term{
-                ColumnReferenceExpression{token->lexeme, token->location},
-                OrderDirection::ascending};
+            auto column = parse_column_reference(*token);
+            if (!column) {
+                return std::unexpected(column.error());
+            }
+            OrderByTerm term{std::move(*column),
+                             OrderDirection::ascending};
             token = next_token();
             if (!token) {
                 return std::unexpected(token.error());
@@ -780,8 +818,10 @@ std::expected<UpdateStatement, ParseError> Parser::parse_update_statement() {
                 ParseError{ParseErrorCode::expected_identifier,
                            token->location});
         }
-        const ColumnReferenceExpression column{token->lexeme,
-                                               token->location};
+        auto column = parse_column_reference(*token);
+        if (!column) {
+            return std::unexpected(column.error());
+        }
 
         token = next_token();
         if (!token) {
@@ -801,8 +841,9 @@ std::expected<UpdateStatement, ParseError> Parser::parse_update_statement() {
                 ParseError{ParseErrorCode::expected_literal, token->location});
         }
         statement.assignments.push_back(UpdateAssignment{
-            column, LiteralExpression{literal_type(token->type), token->lexeme,
-                                      token->location}});
+            std::move(*column),
+            LiteralExpression{literal_type(token->type), token->lexeme,
+                              token->location}});
 
         token = peek_token();
         if (!token) {

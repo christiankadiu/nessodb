@@ -135,6 +135,23 @@ std::size_t find_column_index(const catalog::TableSchema& table,
     return index;
 }
 
+std::expected<std::size_t, BindError> resolve_column(
+    const catalog::TableSchema& table,
+    const sql::ColumnReferenceExpression& column) {
+    if (column.qualifier &&
+        !common::identifiers_equal(column.qualifier->name, table.name)) {
+        return std::unexpected(BindError{
+            BindErrorCode::table_not_found, column.qualifier->location});
+    }
+
+    const std::size_t index = find_column_index(table, column.name);
+    if (index == table.columns.size()) {
+        return std::unexpected(BindError{
+            BindErrorCode::column_not_found, column.location});
+    }
+    return index;
+}
+
 BoundComparisonOperator bind_comparison_operator(
     sql::ComparisonOperator comparison) noexcept {
     switch (comparison) {
@@ -230,15 +247,13 @@ std::expected<BoundExpression, BindError> bind_select_expression(
             return std::unexpected(BindError{
                 BindErrorCode::column_requires_table, column->location});
         }
-        const std::size_t column_index =
-            find_column_index(*table, column->name);
-        if (column_index == table->columns.size()) {
-            return std::unexpected(BindError{
-                BindErrorCode::column_not_found, column->location});
+        auto column_index = resolve_column(*table, *column);
+        if (!column_index) {
+            return std::unexpected(column_index.error());
         }
         return BoundExpression{BoundColumnReferenceExpression{
-            column_index, column->location,
-            table->columns[column_index].type}};
+            *column_index, column->location,
+            table->columns[*column_index].type}};
     }
 
     if (const auto* unary =
@@ -326,18 +341,17 @@ std::expected<BoundExpression, BindError> bind_predicate(
     const sql::Predicate& predicate, const catalog::TableSchema& table) {
     if (const auto* comparison =
             std::get_if<sql::ComparisonPredicate>(&predicate)) {
-        const std::size_t column_index =
-            find_column_index(table, comparison->column.name);
-        if (column_index == table.columns.size()) {
-            return std::unexpected(BindError{
-                BindErrorCode::column_not_found, comparison->column.location});
+        auto column_index = resolve_column(table, comparison->column);
+        if (!column_index) {
+            return std::unexpected(column_index.error());
         }
 
         auto value = bind_literal(comparison->value);
         if (!value) {
             return std::unexpected(value.error());
         }
-        if (!value_matches_type(value->value, table.columns[column_index].type)) {
+        if (!value_matches_type(value->value,
+                                table.columns[*column_index].type)) {
             return std::unexpected(
                 BindError{BindErrorCode::type_mismatch, value->location});
         }
@@ -345,24 +359,22 @@ std::expected<BoundExpression, BindError> bind_predicate(
             bind_comparison_operator(comparison->comparison),
             std::make_unique<BoundExpression>(
                 BoundColumnReferenceExpression{
-                    column_index, comparison->column.location,
-                    table.columns[column_index].type}),
+                    *column_index, comparison->column.location,
+                    table.columns[*column_index].type}),
             std::make_unique<BoundExpression>(std::move(*value))}};
     }
 
     if (const auto* null_predicate =
             std::get_if<sql::NullPredicate>(&predicate)) {
-        const std::size_t column_index =
-            find_column_index(table, null_predicate->column.name);
-        if (column_index == table.columns.size()) {
-            return std::unexpected(BindError{
-                BindErrorCode::column_not_found, null_predicate->column.location});
+        auto column_index = resolve_column(table, null_predicate->column);
+        if (!column_index) {
+            return std::unexpected(column_index.error());
         }
         return BoundExpression{BoundNullTestExpression{
             std::make_unique<BoundExpression>(
                 BoundColumnReferenceExpression{
-                    column_index, null_predicate->column.location,
-                    table.columns[column_index].type}),
+                    *column_index, null_predicate->column.location,
+                    table.columns[*column_index].type}),
             null_predicate->negated}};
     }
 
@@ -469,19 +481,16 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
     bound_statement.order_by.reserve(statement.order_by.size());
     for (const auto& term : statement.order_by) {
-        const std::size_t column_index =
-            find_column_index(*table, term.column.name);
-        if (column_index == table->columns.size()) {
-            return std::unexpected(
-                BindError{BindErrorCode::column_not_found,
-                          term.column.location});
+        auto column_index = resolve_column(*table, term.column);
+        if (!column_index) {
+            return std::unexpected(column_index.error());
         }
         const auto direction =
             term.direction == sql::OrderDirection::ascending
                 ? BoundOrderDirection::ascending
                 : BoundOrderDirection::descending;
         bound_statement.order_by.push_back(
-            BoundOrderByTerm{column_index, direction});
+            BoundOrderByTerm{*column_index, direction});
     }
 
     if (statement.limit) {
@@ -587,15 +596,12 @@ std::expected<BoundUpdateStatement, BindError> bind_update_statement(
     BoundUpdateStatement bound_statement{table->id, {}, std::nullopt};
     bound_statement.assignments.reserve(statement.assignments.size());
     for (const auto& assignment : statement.assignments) {
-        const std::size_t column_index =
-            find_column_index(*table, assignment.column.name);
-        if (column_index == table->columns.size()) {
-            return std::unexpected(
-                BindError{BindErrorCode::column_not_found,
-                          assignment.column.location});
+        auto column_index = resolve_column(*table, assignment.column);
+        if (!column_index) {
+            return std::unexpected(column_index.error());
         }
         for (const auto& existing : bound_statement.assignments) {
-            if (existing.column_index == column_index) {
+            if (existing.column_index == *column_index) {
                 return std::unexpected(
                     BindError{BindErrorCode::duplicate_column,
                               assignment.column.location});
@@ -607,12 +613,12 @@ std::expected<BoundUpdateStatement, BindError> bind_update_statement(
             return std::unexpected(value.error());
         }
         if (!value_matches_type(value->value,
-                                table->columns[column_index].type)) {
+                                table->columns[*column_index].type)) {
             return std::unexpected(
                 BindError{BindErrorCode::type_mismatch, value->location});
         }
         bound_statement.assignments.push_back(
-            BoundUpdateAssignment{column_index, std::move(value->value)});
+            BoundUpdateAssignment{*column_index, std::move(value->value)});
     }
 
     if (statement.where) {
