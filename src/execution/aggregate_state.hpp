@@ -2,6 +2,7 @@
 
 #include "types/value.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <span>
@@ -23,6 +24,7 @@ class AggregateState {
 public:
     virtual ~AggregateState() = default;
 
+    [[nodiscard]] virtual std::size_t argument_count() const noexcept = 0;
     [[nodiscard]] virtual AggregateResult accumulate(
         std::span<const types::Value> arguments) = 0;
     [[nodiscard]] virtual types::Value finalize() const = 0;
@@ -37,6 +39,7 @@ class CountAggregateState final : public AggregateState {
 public:
     explicit CountAggregateState(CountMode mode) noexcept;
 
+    [[nodiscard]] std::size_t argument_count() const noexcept override;
     [[nodiscard]] AggregateResult accumulate(
         std::span<const types::Value> arguments) override;
     [[nodiscard]] types::Value finalize() const override;

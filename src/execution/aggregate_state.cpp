@@ -8,11 +8,13 @@ namespace minidb::execution {
 CountAggregateState::CountAggregateState(CountMode mode) noexcept
     : mode_(mode) {}
 
+std::size_t CountAggregateState::argument_count() const noexcept {
+    return mode_ == CountMode::all_rows ? 0 : 1;
+}
+
 AggregateResult CountAggregateState::accumulate(
     std::span<const types::Value> arguments) {
-    const std::size_t expected_arguments =
-        mode_ == CountMode::all_rows ? 0 : 1;
-    if (arguments.size() != expected_arguments) {
+    if (arguments.size() != argument_count()) {
         return std::unexpected(AggregateError{
             AggregateErrorCode::invalid_argument_count});
     }
