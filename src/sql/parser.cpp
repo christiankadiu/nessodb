@@ -394,6 +394,13 @@ Parser::parse_primary_expression() {
             literal_type(token->type), token->lexeme, token->location}};
     }
     if (token->type == TokenType::identifier) {
+        auto next = peek_token();
+        if (!next) {
+            return std::unexpected(next.error());
+        }
+        if (next->type == TokenType::left_parenthesis) {
+            return parse_function_call(*token);
+        }
         auto column = parse_column_reference(*token);
         if (!column) {
             return std::unexpected(column.error());
@@ -418,6 +425,57 @@ Parser::parse_primary_expression() {
             ParseErrorCode::expected_right_parenthesis, token->location});
     }
     return expression;
+}
+
+std::expected<Expression, ParseError>
+Parser::parse_function_call(Token name) {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+
+    FunctionCallExpression call{name.lexeme, {}, false, name.location};
+    token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type == TokenType::star) {
+        call.star_argument = true;
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+    } else {
+        while (true) {
+            auto argument = parse_expression();
+            if (!argument) {
+                return std::unexpected(argument.error());
+            }
+            call.arguments.push_back(
+                std::make_unique<Expression>(std::move(*argument)));
+            token = peek_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type != TokenType::comma) {
+                break;
+            }
+            auto comma = next_token();
+            if (!comma) {
+                return std::unexpected(comma.error());
+            }
+        }
+    }
+
+    token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::right_parenthesis) {
+        return std::unexpected(ParseError{
+            ParseErrorCode::expected_right_parenthesis, token->location});
+    }
+    return Expression{std::move(call)};
 }
 
 std::expected<ColumnReferenceExpression, ParseError>

@@ -34,6 +34,11 @@ struct LogicalProjection {
     LogicalPlanPtr child;
 };
 
+struct LogicalAggregate {
+    std::vector<binder::BoundAggregateExpression> aggregates;
+    LogicalPlanPtr child;
+};
+
 struct LogicalDistinct {
     LogicalPlanPtr child;
 };
@@ -46,7 +51,8 @@ struct LogicalLimit {
 
 using LogicalPlanNode =
     std::variant<LogicalTableScan, LogicalOneRow, LogicalFilter, LogicalSort,
-                 LogicalProjection, LogicalDistinct, LogicalLimit>;
+                 LogicalProjection, LogicalAggregate, LogicalDistinct,
+                 LogicalLimit>;
 
 struct LogicalPlan {
     LogicalPlanNode node;

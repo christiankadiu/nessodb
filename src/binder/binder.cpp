@@ -234,7 +234,11 @@ const sql::SourceLocation& expression_location(
             std::get_if<sql::LogicalExpression>(&expression.node)) {
         return logical->location;
     }
-    return std::get<sql::NegationExpression>(expression.node).location;
+    if (const auto* negation =
+            std::get_if<sql::NegationExpression>(&expression.node)) {
+        return negation->location;
+    }
+    return std::get<sql::FunctionCallExpression>(expression.node).location;
 }
 
 bool is_integer_expression(const BoundExpression& expression) noexcept {
@@ -407,6 +411,13 @@ std::expected<BoundExpression, BindError> bind_expression(
             std::make_unique<BoundExpression>(std::move(*operand))}};
     }
 
+    if (std::holds_alternative<sql::FunctionCallExpression>(
+            expression.node)) {
+        return std::unexpected(BindError{
+            BindErrorCode::invalid_function_arguments,
+            expression_location(expression)});
+    }
+
     const auto& logical = std::get<sql::LogicalExpression>(expression.node);
     if (!logical.left || !logical.right) {
         throw std::logic_error{"logical expression requires two operands"};
@@ -472,7 +483,55 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         }
     }
 
+    bool has_aggregate = false;
+    bool has_scalar = false;
     for (const auto& expression : statement.expressions) {
+        if (const auto* function =
+                std::get_if<sql::FunctionCallExpression>(&expression.node)) {
+            if (!common::identifiers_equal(function->name, "count")) {
+                return std::unexpected(BindError{
+                    BindErrorCode::function_not_found,
+                    function->location});
+            }
+            if (has_scalar ||
+                (function->star_argument && !function->arguments.empty()) ||
+                (!function->star_argument &&
+                 function->arguments.size() != 1)) {
+                return std::unexpected(BindError{
+                    has_scalar
+                        ? BindErrorCode::mixed_aggregate_and_scalar
+                        : BindErrorCode::invalid_function_arguments,
+                    function->location});
+            }
+
+            BoundAggregateExpression aggregate{
+                BoundAggregateFunction::count, {}, function->location};
+            if (!function->star_argument) {
+                auto argument =
+                    bind_expression(*function->arguments.front(), table);
+                if (!argument) {
+                    return std::unexpected(argument.error());
+                }
+                if (argument->result_type() !=
+                    BoundExpressionResultType::value) {
+                    return std::unexpected(BindError{
+                        BindErrorCode::type_mismatch,
+                        expression_location(*function->arguments.front())});
+                }
+                aggregate.arguments.push_back(std::move(*argument));
+            }
+            bound_statement.aggregates.push_back(std::move(aggregate));
+            bound_statement.result_column_names.emplace_back(
+                expression.alias ? expression.alias->name : "count");
+            has_aggregate = true;
+            continue;
+        }
+        if (has_aggregate) {
+            return std::unexpected(BindError{
+                BindErrorCode::mixed_aggregate_and_scalar,
+                expression_location(expression)});
+        }
+        has_scalar = true;
         auto bound_expression = bind_expression(expression, table);
         if (!bound_expression) {
             return std::unexpected(bound_expression.error());

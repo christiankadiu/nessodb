@@ -63,6 +63,11 @@ PhysicalPlanPtr plan_physical(LogicalPlanPtr logical_plan) {
                     std::move(projection.expressions),
                     plan_physical(std::move(projection.child))});
             },
+            [](LogicalAggregate& aggregate) {
+                return make_plan(PhysicalGlobalAggregate{
+                    std::move(aggregate.aggregates),
+                    plan_physical(std::move(aggregate.child))});
+            },
             [](LogicalDistinct& distinct) {
                 return make_plan(PhysicalHashDistinct{
                     plan_physical(std::move(distinct.child))});

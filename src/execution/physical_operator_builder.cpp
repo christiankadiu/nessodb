@@ -2,6 +2,7 @@
 
 #include "execution/distinct_operator.hpp"
 #include "execution/filter_operator.hpp"
+#include "execution/global_aggregate_operator.hpp"
 #include "execution/limit_operator.hpp"
 #include "execution/projection_operator.hpp"
 #include "execution/sort_operator.hpp"
@@ -75,6 +76,24 @@ std::unique_ptr<RowOperator> build_operator_tree(
                     std::move(projection.child), std::move(input_rows));
                 return std::make_unique<ProjectionOperator>(
                     std::move(child), std::move(projection.expressions));
+            },
+            [&input_rows](planner::PhysicalGlobalAggregate& aggregate)
+                -> std::unique_ptr<RowOperator> {
+                auto child = build_operator_tree(
+                    std::move(aggregate.child), std::move(input_rows));
+                std::vector<AggregateComputation> computations;
+                computations.reserve(aggregate.aggregates.size());
+                for (auto& expression : aggregate.aggregates) {
+                    const auto mode = expression.arguments.empty()
+                                          ? CountMode::all_rows
+                                          : CountMode::non_null_values;
+                    computations.push_back(AggregateComputation{
+                        std::make_unique<CountAggregateState>(mode),
+                        std::move(expression.arguments),
+                        expression.location});
+                }
+                return std::make_unique<GlobalAggregateOperator>(
+                    std::move(child), std::move(computations));
             },
             [&input_rows](planner::PhysicalHashDistinct& distinct)
                 -> std::unique_ptr<RowOperator> {
