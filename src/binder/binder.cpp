@@ -488,12 +488,29 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     for (const auto& expression : statement.expressions) {
         if (const auto* function =
                 std::get_if<sql::FunctionCallExpression>(&expression.node)) {
-            if (!common::identifiers_equal(function->name, "count")) {
+            std::optional<BoundAggregateFunction> aggregate_function;
+            std::string_view default_name;
+            if (common::identifiers_equal(function->name, "count")) {
+                aggregate_function = BoundAggregateFunction::count;
+                default_name = "count";
+            } else if (common::identifiers_equal(function->name, "min")) {
+                aggregate_function = BoundAggregateFunction::minimum;
+                default_name = "min";
+            } else if (common::identifiers_equal(function->name, "max")) {
+                aggregate_function = BoundAggregateFunction::maximum;
+                default_name = "max";
+            } else if (common::identifiers_equal(function->name, "sum")) {
+                aggregate_function = BoundAggregateFunction::sum;
+                default_name = "sum";
+            }
+            if (!aggregate_function) {
                 return std::unexpected(BindError{
                     BindErrorCode::function_not_found,
                     function->location});
             }
-            if (has_scalar ||
+            const bool count = *aggregate_function ==
+                               BoundAggregateFunction::count;
+            if (has_scalar || (!count && function->star_argument) ||
                 (function->star_argument && !function->arguments.empty()) ||
                 (!function->star_argument &&
                  function->arguments.size() != 1)) {
@@ -505,7 +522,7 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
             }
 
             BoundAggregateExpression aggregate{
-                BoundAggregateFunction::count, {}, function->location};
+                *aggregate_function, {}, function->location};
             if (!function->star_argument) {
                 auto argument =
                     bind_expression(*function->arguments.front(), table);
@@ -518,11 +535,19 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                         BindErrorCode::type_mismatch,
                         expression_location(*function->arguments.front())});
                 }
+                if (*aggregate_function == BoundAggregateFunction::sum &&
+                    argument->value_type() &&
+                    *argument->value_type() !=
+                        types::LogicalType::integer) {
+                    return std::unexpected(BindError{
+                        BindErrorCode::type_mismatch,
+                        expression_location(*function->arguments.front())});
+                }
                 aggregate.arguments.push_back(std::move(*argument));
             }
             bound_statement.aggregates.push_back(std::move(aggregate));
             bound_statement.result_column_names.emplace_back(
-                expression.alias ? expression.alias->name : "count");
+                expression.alias ? expression.alias->name : default_name);
             has_aggregate = true;
             continue;
         }

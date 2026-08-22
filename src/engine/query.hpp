@@ -29,6 +29,7 @@ enum class ExecutionErrorCode {
     memory_limit_exceeded,
     integer_overflow,
     division_by_zero,
+    type_mismatch,
 };
 
 struct ExecutionError {

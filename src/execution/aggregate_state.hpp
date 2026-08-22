@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 
 namespace minidb::execution {
@@ -12,6 +13,7 @@ namespace minidb::execution {
 enum class AggregateErrorCode {
     invalid_argument_count,
     integer_overflow,
+    type_mismatch,
 };
 
 struct AggregateError {
@@ -47,6 +49,36 @@ public:
 private:
     CountMode mode_;
     std::int64_t count_{};
+};
+
+enum class MinMaxMode {
+    minimum,
+    maximum,
+};
+
+class MinMaxAggregateState final : public AggregateState {
+public:
+    explicit MinMaxAggregateState(MinMaxMode mode) noexcept;
+
+    [[nodiscard]] std::size_t argument_count() const noexcept override;
+    [[nodiscard]] AggregateResult accumulate(
+        std::span<const types::Value> arguments) override;
+    [[nodiscard]] types::Value finalize() const override;
+
+private:
+    MinMaxMode mode_;
+    std::optional<types::Value> value_;
+};
+
+class SumAggregateState final : public AggregateState {
+public:
+    [[nodiscard]] std::size_t argument_count() const noexcept override;
+    [[nodiscard]] AggregateResult accumulate(
+        std::span<const types::Value> arguments) override;
+    [[nodiscard]] types::Value finalize() const override;
+
+private:
+    std::optional<std::int64_t> sum_;
 };
 
 }  // namespace minidb::execution
