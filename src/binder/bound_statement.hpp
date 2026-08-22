@@ -25,6 +25,9 @@ struct BoundOrderByTerm {
 
 enum class BoundAggregateFunction {
     count,
+    minimum,
+    maximum,
+    sum,
 };
 
 struct BoundAggregateExpression {

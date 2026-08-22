@@ -84,11 +84,29 @@ std::unique_ptr<RowOperator> build_operator_tree(
                 std::vector<AggregateComputation> computations;
                 computations.reserve(aggregate.aggregates.size());
                 for (auto& expression : aggregate.aggregates) {
-                    const auto mode = expression.arguments.empty()
-                                          ? CountMode::all_rows
-                                          : CountMode::non_null_values;
+                    std::unique_ptr<AggregateState> state;
+                    switch (expression.function) {
+                        case binder::BoundAggregateFunction::count: {
+                            const auto mode = expression.arguments.empty()
+                                                  ? CountMode::all_rows
+                                                  : CountMode::non_null_values;
+                            state = std::make_unique<CountAggregateState>(mode);
+                            break;
+                        }
+                        case binder::BoundAggregateFunction::minimum:
+                            state = std::make_unique<MinMaxAggregateState>(
+                                MinMaxMode::minimum);
+                            break;
+                        case binder::BoundAggregateFunction::maximum:
+                            state = std::make_unique<MinMaxAggregateState>(
+                                MinMaxMode::maximum);
+                            break;
+                        case binder::BoundAggregateFunction::sum:
+                            state = std::make_unique<SumAggregateState>();
+                            break;
+                    }
                     computations.push_back(AggregateComputation{
-                        std::make_unique<CountAggregateState>(mode),
+                        std::move(state),
                         std::move(expression.arguments),
                         expression.location});
                 }
