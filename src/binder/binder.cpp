@@ -204,8 +204,8 @@ BoundBinaryArithmeticOperator bind_binary_arithmetic_operator(
     return BoundBinaryArithmeticOperator::addition;
 }
 
-const sql::SourceLocation& select_expression_location(
-    const sql::SelectExpression& expression) noexcept {
+const sql::SourceLocation& expression_location(
+    const sql::Expression& expression) noexcept {
     if (const auto* literal =
             std::get_if<sql::LiteralExpression>(&expression.node)) {
         return literal->location;
@@ -218,7 +218,23 @@ const sql::SourceLocation& select_expression_location(
             std::get_if<sql::UnaryArithmeticExpression>(&expression.node)) {
         return unary->location;
     }
-    return std::get<sql::BinaryArithmeticExpression>(expression.node).location;
+    if (const auto* binary =
+            std::get_if<sql::BinaryArithmeticExpression>(&expression.node)) {
+        return binary->location;
+    }
+    if (const auto* comparison =
+            std::get_if<sql::ComparisonExpression>(&expression.node)) {
+        return comparison->location;
+    }
+    if (const auto* null_test =
+            std::get_if<sql::NullTestExpression>(&expression.node)) {
+        return null_test->location;
+    }
+    if (const auto* logical =
+            std::get_if<sql::LogicalExpression>(&expression.node)) {
+        return logical->location;
+    }
+    return std::get<sql::NegationExpression>(expression.node).location;
 }
 
 bool is_integer_expression(const BoundExpression& expression) noexcept {
@@ -229,8 +245,8 @@ bool is_integer_expression(const BoundExpression& expression) noexcept {
     return !type || *type == types::LogicalType::integer;
 }
 
-std::expected<BoundExpression, BindError> bind_select_expression(
-    const sql::SelectExpression& expression,
+std::expected<BoundExpression, BindError> bind_expression(
+    const sql::Expression& expression,
     const catalog::TableSchema* table) {
     if (const auto* literal =
             std::get_if<sql::LiteralExpression>(&expression.node)) {
@@ -273,14 +289,14 @@ std::expected<BoundExpression, BindError> bind_select_expression(
                 }
             }
         }
-        auto operand = bind_select_expression(*unary->operand, table);
+        auto operand = bind_expression(*unary->operand, table);
         if (!operand) {
             return std::unexpected(operand.error());
         }
         if (!is_integer_expression(*operand)) {
             return std::unexpected(BindError{
                 BindErrorCode::type_mismatch,
-                select_expression_location(*unary->operand)});
+                expression_location(*unary->operand)});
         }
         return BoundExpression{BoundUnaryArithmeticExpression{
             bind_unary_arithmetic_operator(unary->operation),
@@ -288,115 +304,130 @@ std::expected<BoundExpression, BindError> bind_select_expression(
             unary->location}};
     }
 
-    const auto& binary =
-        std::get<sql::BinaryArithmeticExpression>(expression.node);
-    if (!binary.left || !binary.right) {
-        throw std::logic_error{
-            "binary arithmetic expression requires two operands"};
-    }
-    auto left = bind_select_expression(*binary.left, table);
-    if (!left) {
-        return std::unexpected(left.error());
-    }
-    if (!is_integer_expression(*left)) {
-        return std::unexpected(BindError{
-            BindErrorCode::type_mismatch,
-            select_expression_location(*binary.left)});
-    }
-    auto right = bind_select_expression(*binary.right, table);
-    if (!right) {
-        return std::unexpected(right.error());
-    }
-    if (!is_integer_expression(*right)) {
-        return std::unexpected(BindError{
-            BindErrorCode::type_mismatch,
-            select_expression_location(*binary.right)});
-    }
-    return BoundExpression{BoundBinaryArithmeticExpression{
-        bind_binary_arithmetic_operator(binary.operation),
-        std::make_unique<BoundExpression>(std::move(*left)),
-        std::make_unique<BoundExpression>(std::move(*right)),
-        binary.location}};
-}
-
-const sql::SourceLocation& predicate_location(
-    const sql::Predicate& predicate) noexcept {
-    if (const auto* comparison =
-            std::get_if<sql::ComparisonPredicate>(&predicate)) {
-        return comparison->column.location;
-    }
-    if (const auto* null_predicate =
-            std::get_if<sql::NullPredicate>(&predicate)) {
-        return null_predicate->column.location;
-    }
-    if (const auto* negation =
-            std::get_if<std::unique_ptr<sql::NegationPredicate>>(&predicate)) {
-        return predicate_location((*negation)->operand);
-    }
-    return predicate_location(
-        std::get<std::unique_ptr<sql::LogicalPredicate>>(predicate)->left);
-}
-
-std::expected<BoundExpression, BindError> bind_predicate(
-    const sql::Predicate& predicate, const catalog::TableSchema& table) {
-    if (const auto* comparison =
-            std::get_if<sql::ComparisonPredicate>(&predicate)) {
-        auto column_index = resolve_column(table, comparison->column);
-        if (!column_index) {
-            return std::unexpected(column_index.error());
+    if (const auto* binary =
+            std::get_if<sql::BinaryArithmeticExpression>(&expression.node)) {
+        if (!binary->left || !binary->right) {
+            throw std::logic_error{
+                "binary arithmetic expression requires two operands"};
         }
-
-        auto value = bind_literal(comparison->value);
-        if (!value) {
-            return std::unexpected(value.error());
+        auto left = bind_expression(*binary->left, table);
+        if (!left) {
+            return std::unexpected(left.error());
         }
-        if (!value_matches_type(value->value,
-                                table.columns[*column_index].type)) {
-            return std::unexpected(
-                BindError{BindErrorCode::type_mismatch, value->location});
+        if (!is_integer_expression(*left)) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*binary->left)});
+        }
+        auto right = bind_expression(*binary->right, table);
+        if (!right) {
+            return std::unexpected(right.error());
+        }
+        if (!is_integer_expression(*right)) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*binary->right)});
+        }
+        return BoundExpression{BoundBinaryArithmeticExpression{
+            bind_binary_arithmetic_operator(binary->operation),
+            std::make_unique<BoundExpression>(std::move(*left)),
+            std::make_unique<BoundExpression>(std::move(*right)),
+            binary->location}};
+    }
+
+    if (const auto* comparison =
+            std::get_if<sql::ComparisonExpression>(&expression.node)) {
+        if (!comparison->left || !comparison->right) {
+            throw std::logic_error{
+                "comparison expression requires two operands"};
+        }
+        auto left = bind_expression(*comparison->left, table);
+        if (!left) {
+            return std::unexpected(left.error());
+        }
+        auto right = bind_expression(*comparison->right, table);
+        if (!right) {
+            return std::unexpected(right.error());
+        }
+        if (left->result_type() != BoundExpressionResultType::value ||
+            right->result_type() != BoundExpressionResultType::value) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*comparison->right)});
+        }
+        const auto left_type = left->value_type();
+        const auto right_type = right->value_type();
+        if (left_type && right_type && *left_type != *right_type) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*comparison->right)});
         }
         return BoundExpression{BoundComparisonExpression{
             bind_comparison_operator(comparison->comparison),
-            std::make_unique<BoundExpression>(
-                BoundColumnReferenceExpression{
-                    *column_index, comparison->column.location,
-                    table.columns[*column_index].type}),
-            std::make_unique<BoundExpression>(std::move(*value))}};
+            std::make_unique<BoundExpression>(std::move(*left)),
+            std::make_unique<BoundExpression>(std::move(*right))}};
     }
 
-    if (const auto* null_predicate =
-            std::get_if<sql::NullPredicate>(&predicate)) {
-        auto column_index = resolve_column(table, null_predicate->column);
-        if (!column_index) {
-            return std::unexpected(column_index.error());
+    if (const auto* null_test =
+            std::get_if<sql::NullTestExpression>(&expression.node)) {
+        if (!null_test->operand) {
+            throw std::logic_error{
+                "null test expression requires an operand"};
+        }
+        auto operand = bind_expression(*null_test->operand, table);
+        if (!operand) {
+            return std::unexpected(operand.error());
+        }
+        if (operand->result_type() != BoundExpressionResultType::value) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*null_test->operand)});
         }
         return BoundExpression{BoundNullTestExpression{
-            std::make_unique<BoundExpression>(
-                BoundColumnReferenceExpression{
-                    *column_index, null_predicate->column.location,
-                    table.columns[*column_index].type}),
-            null_predicate->negated}};
+            std::make_unique<BoundExpression>(std::move(*operand)),
+            null_test->negated}};
     }
 
     if (const auto* negation =
-            std::get_if<std::unique_ptr<sql::NegationPredicate>>(&predicate)) {
-        auto operand = bind_predicate((*negation)->operand, table);
+            std::get_if<sql::NegationExpression>(&expression.node)) {
+        if (!negation->operand) {
+            throw std::logic_error{
+                "negation expression requires an operand"};
+        }
+        auto operand = bind_expression(*negation->operand, table);
         if (!operand) {
             return std::unexpected(operand.error());
+        }
+        if (operand->result_type() != BoundExpressionResultType::boolean) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*negation->operand)});
         }
         return BoundExpression{BoundNegationExpression{
             std::make_unique<BoundExpression>(std::move(*operand))}};
     }
 
-    const auto& logical =
-        *std::get<std::unique_ptr<sql::LogicalPredicate>>(predicate);
-    auto left = bind_predicate(logical.left, table);
+    const auto& logical = std::get<sql::LogicalExpression>(expression.node);
+    if (!logical.left || !logical.right) {
+        throw std::logic_error{"logical expression requires two operands"};
+    }
+    auto left = bind_expression(*logical.left, table);
     if (!left) {
         return std::unexpected(left.error());
     }
-    auto right = bind_predicate(logical.right, table);
+    if (left->result_type() != BoundExpressionResultType::boolean) {
+        return std::unexpected(BindError{
+            BindErrorCode::type_mismatch,
+            expression_location(*logical.left)});
+    }
+    auto right = bind_expression(*logical.right, table);
     if (!right) {
         return std::unexpected(right.error());
+    }
+    if (right->result_type() != BoundExpressionResultType::boolean) {
+        return std::unexpected(BindError{
+            BindErrorCode::type_mismatch,
+            expression_location(*logical.right)});
     }
     return BoundExpression{BoundLogicalExpression{
         bind_logical_operator(logical.operation),
@@ -442,9 +473,15 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
 
     for (const auto& expression : statement.expressions) {
-        auto bound_expression = bind_select_expression(expression, table);
+        auto bound_expression = bind_expression(expression, table);
         if (!bound_expression) {
             return std::unexpected(bound_expression.error());
+        }
+        if (bound_expression->result_type() !=
+            BoundExpressionResultType::value) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(expression)});
         }
         if (expression.alias) {
             bound_statement.result_column_names.emplace_back(
@@ -465,13 +502,19 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         if (table == nullptr) {
             return std::unexpected(
                 BindError{BindErrorCode::column_requires_table,
-                          predicate_location(*statement.where)});
+                          expression_location(*statement.where)});
         }
-        auto predicate = bind_predicate(*statement.where, *table);
-        if (!predicate) {
-            return std::unexpected(predicate.error());
+        auto expression = bind_expression(*statement.where, table);
+        if (!expression) {
+            return std::unexpected(expression.error());
         }
-        bound_statement.where = std::move(*predicate);
+        if (expression->result_type() !=
+            BoundExpressionResultType::boolean) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*statement.where)});
+        }
+        bound_statement.where = std::move(*expression);
     }
 
     if (!statement.order_by.empty() && table == nullptr) {
@@ -575,11 +618,17 @@ std::expected<BoundDeleteStatement, BindError> bind_delete_statement(
 
     BoundDeleteStatement bound_statement{table->id, std::nullopt};
     if (statement.where) {
-        auto predicate = bind_predicate(*statement.where, *table);
-        if (!predicate) {
-            return std::unexpected(predicate.error());
+        auto expression = bind_expression(*statement.where, table);
+        if (!expression) {
+            return std::unexpected(expression.error());
         }
-        bound_statement.where = std::move(*predicate);
+        if (expression->result_type() !=
+            BoundExpressionResultType::boolean) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*statement.where)});
+        }
+        bound_statement.where = std::move(*expression);
     }
     return bound_statement;
 }
@@ -622,11 +671,17 @@ std::expected<BoundUpdateStatement, BindError> bind_update_statement(
     }
 
     if (statement.where) {
-        auto predicate = bind_predicate(*statement.where, *table);
-        if (!predicate) {
-            return std::unexpected(predicate.error());
+        auto expression = bind_expression(*statement.where, table);
+        if (!expression) {
+            return std::unexpected(expression.error());
         }
-        bound_statement.where = std::move(*predicate);
+        if (expression->result_type() !=
+            BoundExpressionResultType::boolean) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(*statement.where)});
+        }
+        bound_statement.where = std::move(*expression);
     }
     return bound_statement;
 }

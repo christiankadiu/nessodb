@@ -45,50 +45,6 @@ enum class BinaryArithmeticOperator {
     division,
 };
 
-struct SelectExpression;
-using SelectExpressionPtr = std::unique_ptr<SelectExpression>;
-
-struct UnaryArithmeticExpression {
-    UnaryArithmeticOperator operation;
-    SelectExpressionPtr operand;
-    SourceLocation location;
-};
-
-struct BinaryArithmeticExpression {
-    BinaryArithmeticOperator operation;
-    SelectExpressionPtr left;
-    SelectExpressionPtr right;
-    SourceLocation location;
-};
-
-using SelectExpressionNode =
-    std::variant<LiteralExpression, ColumnReferenceExpression,
-                 UnaryArithmeticExpression, BinaryArithmeticExpression>;
-
-struct ExpressionAlias {
-    std::string_view name;
-    SourceLocation location;
-};
-
-struct SelectExpression {
-    SelectExpression(LiteralExpression expression)
-        : node(std::move(expression)) {}
-    SelectExpression(ColumnReferenceExpression expression)
-        : node(std::move(expression)) {}
-    SelectExpression(UnaryArithmeticExpression expression)
-        : node(std::move(expression)) {}
-    SelectExpression(BinaryArithmeticExpression expression)
-        : node(std::move(expression)) {}
-
-    SelectExpressionNode node;
-    std::optional<ExpressionAlias> alias;
-};
-
-struct TableReference {
-    std::string_view name;
-    SourceLocation location;
-};
-
 enum class ComparisonOperator {
     equal,
     not_equal,
@@ -98,38 +54,88 @@ enum class ComparisonOperator {
     greater_equal,
 };
 
-struct ComparisonPredicate {
-    ColumnReferenceExpression column;
-    ComparisonOperator comparison;
-    LiteralExpression value;
-};
-
-struct NullPredicate {
-    ColumnReferenceExpression column;
-    bool negated{};
-};
-
-struct LogicalPredicate;
-struct NegationPredicate;
-
-using Predicate =
-    std::variant<ComparisonPredicate, NullPredicate,
-                 std::unique_ptr<LogicalPredicate>,
-                 std::unique_ptr<NegationPredicate>>;
-
 enum class LogicalOperator {
     conjunction,
     disjunction,
 };
 
-struct LogicalPredicate {
-    LogicalOperator operation;
-    Predicate left;
-    Predicate right;
+struct Expression;
+using ExpressionPtr = std::unique_ptr<Expression>;
+
+struct UnaryArithmeticExpression {
+    UnaryArithmeticOperator operation;
+    ExpressionPtr operand;
+    SourceLocation location;
 };
 
-struct NegationPredicate {
-    Predicate operand;
+struct BinaryArithmeticExpression {
+    BinaryArithmeticOperator operation;
+    ExpressionPtr left;
+    ExpressionPtr right;
+    SourceLocation location;
+};
+
+struct ComparisonExpression {
+    ComparisonOperator comparison;
+    ExpressionPtr left;
+    ExpressionPtr right;
+    SourceLocation location;
+};
+
+struct NullTestExpression {
+    ExpressionPtr operand;
+    bool negated{};
+    SourceLocation location;
+};
+
+struct LogicalExpression {
+    LogicalOperator operation;
+    ExpressionPtr left;
+    ExpressionPtr right;
+    SourceLocation location;
+};
+
+struct NegationExpression {
+    ExpressionPtr operand;
+    SourceLocation location;
+};
+
+using ExpressionNode = std::variant<
+    LiteralExpression, ColumnReferenceExpression,
+    UnaryArithmeticExpression, BinaryArithmeticExpression,
+    ComparisonExpression, NullTestExpression, LogicalExpression,
+    NegationExpression>;
+
+struct ExpressionAlias {
+    std::string_view name;
+    SourceLocation location;
+};
+
+struct Expression {
+    Expression(LiteralExpression expression)
+        : node(std::move(expression)) {}
+    Expression(ColumnReferenceExpression expression)
+        : node(std::move(expression)) {}
+    Expression(UnaryArithmeticExpression expression)
+        : node(std::move(expression)) {}
+    Expression(BinaryArithmeticExpression expression)
+        : node(std::move(expression)) {}
+    Expression(ComparisonExpression expression)
+        : node(std::move(expression)) {}
+    Expression(NullTestExpression expression)
+        : node(std::move(expression)) {}
+    Expression(LogicalExpression expression)
+        : node(std::move(expression)) {}
+    Expression(NegationExpression expression)
+        : node(std::move(expression)) {}
+
+    ExpressionNode node;
+    std::optional<ExpressionAlias> alias;
+};
+
+struct TableReference {
+    std::string_view name;
+    SourceLocation location;
 };
 
 enum class OrderDirection {
@@ -153,11 +159,11 @@ struct OffsetClause {
 };
 
 struct SelectStatement {
-    std::vector<SelectExpression> expressions;
+    std::vector<Expression> expressions;
     bool select_all_columns{};
     bool distinct{};
     std::optional<TableReference> from;
-    std::optional<Predicate> where;
+    std::optional<Expression> where;
     std::vector<OrderByTerm> order_by;
     std::optional<LimitClause> limit;
     std::optional<OffsetClause> offset;
@@ -192,7 +198,7 @@ struct InsertStatement {
 
 struct DeleteStatement {
     TableReference from;
-    std::optional<Predicate> where;
+    std::optional<Expression> where;
 };
 
 struct UpdateAssignment {
@@ -203,7 +209,7 @@ struct UpdateAssignment {
 struct UpdateStatement {
     TableReference table;
     std::vector<UpdateAssignment> assignments;
-    std::optional<Predicate> where;
+    std::optional<Expression> where;
 };
 
 using Statement =
