@@ -15,6 +15,7 @@ add_library(minidb
     src/engine/query.cpp
     src/execution/aggregate_state.cpp
     src/execution/global_aggregate_operator.cpp
+    src/execution/hash_aggregate_operator.cpp
     src/execution/distinct_operator.cpp
     src/execution/expression_evaluator.cpp
     src/execution/filter_operator.cpp

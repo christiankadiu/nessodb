@@ -12,6 +12,14 @@ std::size_t CountAggregateState::argument_count() const noexcept {
     return mode_ == CountMode::all_rows ? 0 : 1;
 }
 
+std::unique_ptr<AggregateState> CountAggregateState::clone_empty() const {
+    return std::make_unique<CountAggregateState>(mode_);
+}
+
+std::size_t CountAggregateState::estimated_memory_usage() const noexcept {
+    return sizeof(*this);
+}
+
 AggregateResult CountAggregateState::accumulate(
     std::span<const types::Value> arguments) {
     if (arguments.size() != argument_count()) {
@@ -39,6 +47,15 @@ MinMaxAggregateState::MinMaxAggregateState(MinMaxMode mode) noexcept
 
 std::size_t MinMaxAggregateState::argument_count() const noexcept {
     return 1;
+}
+
+std::unique_ptr<AggregateState> MinMaxAggregateState::clone_empty() const {
+    return std::make_unique<MinMaxAggregateState>(mode_);
+}
+
+std::size_t MinMaxAggregateState::estimated_memory_usage() const noexcept {
+    const auto* text = value_ ? std::get_if<std::string>(&*value_) : nullptr;
+    return sizeof(*this) + (text == nullptr ? 0 : text->size());
 }
 
 AggregateResult MinMaxAggregateState::accumulate(
@@ -85,6 +102,14 @@ types::Value MinMaxAggregateState::finalize() const {
 
 std::size_t SumAggregateState::argument_count() const noexcept {
     return 1;
+}
+
+std::unique_ptr<AggregateState> SumAggregateState::clone_empty() const {
+    return std::make_unique<SumAggregateState>();
+}
+
+std::size_t SumAggregateState::estimated_memory_usage() const noexcept {
+    return sizeof(*this);
 }
 
 AggregateResult SumAggregateState::accumulate(
