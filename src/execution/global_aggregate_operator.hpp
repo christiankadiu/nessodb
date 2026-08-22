@@ -1,19 +1,12 @@
 #pragma once
 
-#include "binder/bound_expression.hpp"
-#include "execution/aggregate_state.hpp"
+#include "execution/aggregate_computation.hpp"
 #include "execution/operator.hpp"
 
 #include <memory>
 #include <vector>
 
 namespace minidb::execution {
-
-struct AggregateComputation {
-    std::unique_ptr<AggregateState> state;
-    std::vector<binder::BoundExpression> arguments;
-    sql::SourceLocation location;
-};
 
 class GlobalAggregateOperator final : public RowOperator {
 public:

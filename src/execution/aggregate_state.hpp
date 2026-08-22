@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <optional>
 #include <span>
 
@@ -27,6 +28,10 @@ public:
     virtual ~AggregateState() = default;
 
     [[nodiscard]] virtual std::size_t argument_count() const noexcept = 0;
+    [[nodiscard]] virtual std::unique_ptr<AggregateState> clone_empty()
+        const = 0;
+    [[nodiscard]] virtual std::size_t estimated_memory_usage()
+        const noexcept = 0;
     [[nodiscard]] virtual AggregateResult accumulate(
         std::span<const types::Value> arguments) = 0;
     [[nodiscard]] virtual types::Value finalize() const = 0;
@@ -42,6 +47,10 @@ public:
     explicit CountAggregateState(CountMode mode) noexcept;
 
     [[nodiscard]] std::size_t argument_count() const noexcept override;
+    [[nodiscard]] std::unique_ptr<AggregateState> clone_empty()
+        const override;
+    [[nodiscard]] std::size_t estimated_memory_usage()
+        const noexcept override;
     [[nodiscard]] AggregateResult accumulate(
         std::span<const types::Value> arguments) override;
     [[nodiscard]] types::Value finalize() const override;
@@ -61,6 +70,10 @@ public:
     explicit MinMaxAggregateState(MinMaxMode mode) noexcept;
 
     [[nodiscard]] std::size_t argument_count() const noexcept override;
+    [[nodiscard]] std::unique_ptr<AggregateState> clone_empty()
+        const override;
+    [[nodiscard]] std::size_t estimated_memory_usage()
+        const noexcept override;
     [[nodiscard]] AggregateResult accumulate(
         std::span<const types::Value> arguments) override;
     [[nodiscard]] types::Value finalize() const override;
@@ -73,6 +86,10 @@ private:
 class SumAggregateState final : public AggregateState {
 public:
     [[nodiscard]] std::size_t argument_count() const noexcept override;
+    [[nodiscard]] std::unique_ptr<AggregateState> clone_empty()
+        const override;
+    [[nodiscard]] std::size_t estimated_memory_usage()
+        const noexcept override;
     [[nodiscard]] AggregateResult accumulate(
         std::span<const types::Value> arguments) override;
     [[nodiscard]] types::Value finalize() const override;
