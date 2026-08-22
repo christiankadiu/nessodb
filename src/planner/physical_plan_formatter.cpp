@@ -75,6 +75,12 @@ void append_plan(const PhysicalPlan& plan, std::size_t depth,
                     std::to_string(projection.expressions.size()) + ')');
                 append_child(projection.child, depth + 1, lines);
             },
+            [depth, &lines](const PhysicalGlobalAggregate& aggregate) {
+                lines.push_back(
+                    indentation(depth) + "Global Aggregate (aggregates=" +
+                    std::to_string(aggregate.aggregates.size()) + ')');
+                append_child(aggregate.child, depth + 1, lines);
+            },
             [depth, &lines](const PhysicalHashDistinct& distinct) {
                 lines.push_back(indentation(depth) + "Hash Distinct");
                 append_child(distinct.child, depth + 1, lines);

@@ -23,9 +23,20 @@ struct BoundOrderByTerm {
     BoundOrderDirection direction;
 };
 
+enum class BoundAggregateFunction {
+    count,
+};
+
+struct BoundAggregateExpression {
+    BoundAggregateFunction function;
+    std::vector<BoundExpression> arguments;
+    sql::SourceLocation location;
+};
+
 struct BoundSelectStatement {
     std::vector<BoundExpression> expressions;
     std::vector<std::string> result_column_names;
+    std::vector<BoundAggregateExpression> aggregates;
     common::TableId table_id;
     bool distinct{};
     std::optional<BoundExpression> where;

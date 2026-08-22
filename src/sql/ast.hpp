@@ -100,11 +100,18 @@ struct NegationExpression {
     SourceLocation location;
 };
 
+struct FunctionCallExpression {
+    std::string_view name;
+    std::vector<ExpressionPtr> arguments;
+    bool star_argument{};
+    SourceLocation location;
+};
+
 using ExpressionNode = std::variant<
     LiteralExpression, ColumnReferenceExpression,
     UnaryArithmeticExpression, BinaryArithmeticExpression,
     ComparisonExpression, NullTestExpression, LogicalExpression,
-    NegationExpression>;
+    NegationExpression, FunctionCallExpression>;
 
 struct ExpressionAlias {
     std::string_view name;
@@ -127,6 +134,8 @@ struct Expression {
     Expression(LogicalExpression expression)
         : node(std::move(expression)) {}
     Expression(NegationExpression expression)
+        : node(std::move(expression)) {}
+    Expression(FunctionCallExpression expression)
         : node(std::move(expression)) {}
 
     ExpressionNode node;
