@@ -60,6 +60,9 @@ ExecutionError execution_error(execution::OperatorError error) noexcept {
         case execution::OperatorErrorCode::division_by_zero:
             return ExecutionError{
                 ExecutionErrorCode::division_by_zero, error.location};
+        case execution::OperatorErrorCode::type_mismatch:
+            return ExecutionError{
+                ExecutionErrorCode::type_mismatch, error.location};
     }
     return ExecutionError{
         ExecutionErrorCode::memory_limit_exceeded, error.location};

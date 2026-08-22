@@ -90,9 +90,13 @@ OperatorResult GlobalAggregateOperator::next() {
                         throw std::logic_error{
                             "aggregate state rejected its declared arity"};
                     }
+                    const auto code =
+                        accumulated.error().code ==
+                                AggregateErrorCode::integer_overflow
+                            ? OperatorErrorCode::integer_overflow
+                            : OperatorErrorCode::type_mismatch;
                     return std::unexpected(OperatorError{
-                        OperatorErrorCode::integer_overflow,
-                        aggregate.location});
+                        code, aggregate.location});
                 }
             }
         }
