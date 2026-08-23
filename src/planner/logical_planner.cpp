@@ -24,17 +24,31 @@ LogicalPlanPtr plan_select(binder::BoundSelectStatement statement) {
         plan = make_plan(LogicalFilter{
             std::move(*statement.where), std::move(plan)});
     }
-    if (!statement.order_by.empty()) {
-        plan = make_plan(LogicalSort{
-            std::move(statement.order_by), std::move(plan)});
-    }
-    if (!statement.expressions.empty()) {
-        plan = make_plan(LogicalProjection{
-            std::move(statement.expressions), std::move(plan)});
-    }
-    if (!statement.aggregates.empty()) {
+    if (!statement.group_by.empty()) {
         plan = make_plan(LogicalAggregate{
+            std::move(statement.group_by),
             std::move(statement.aggregates), std::move(plan)});
+        if (!statement.order_by.empty()) {
+            plan = make_plan(LogicalSort{
+                std::move(statement.order_by), std::move(plan)});
+        }
+        if (!statement.expressions.empty()) {
+            plan = make_plan(LogicalProjection{
+                std::move(statement.expressions), std::move(plan)});
+        }
+    } else {
+        if (!statement.order_by.empty()) {
+            plan = make_plan(LogicalSort{
+                std::move(statement.order_by), std::move(plan)});
+        }
+        if (!statement.expressions.empty()) {
+            plan = make_plan(LogicalProjection{
+                std::move(statement.expressions), std::move(plan)});
+        }
+        if (!statement.aggregates.empty()) {
+            plan = make_plan(LogicalAggregate{
+                {}, std::move(statement.aggregates), std::move(plan)});
+        }
     }
     if (statement.distinct) {
         plan = make_plan(LogicalDistinct{std::move(plan)});

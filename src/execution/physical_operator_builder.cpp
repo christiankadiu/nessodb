@@ -3,6 +3,7 @@
 #include "execution/distinct_operator.hpp"
 #include "execution/filter_operator.hpp"
 #include "execution/global_aggregate_operator.hpp"
+#include "execution/hash_aggregate_operator.hpp"
 #include "execution/limit_operator.hpp"
 #include "execution/projection_operator.hpp"
 #include "execution/sort_operator.hpp"
@@ -24,6 +25,39 @@ struct Overloaded : Visitors... {
 
 template <typename... Visitors>
 Overloaded(Visitors...) -> Overloaded<Visitors...>;
+
+std::unique_ptr<AggregateState> build_aggregate_state(
+    const binder::BoundAggregateExpression& expression) {
+    switch (expression.function) {
+        case binder::BoundAggregateFunction::count: {
+            const auto mode = expression.arguments.empty()
+                                  ? CountMode::all_rows
+                                  : CountMode::non_null_values;
+            return std::make_unique<CountAggregateState>(mode);
+        }
+        case binder::BoundAggregateFunction::minimum:
+            return std::make_unique<MinMaxAggregateState>(
+                MinMaxMode::minimum);
+        case binder::BoundAggregateFunction::maximum:
+            return std::make_unique<MinMaxAggregateState>(
+                MinMaxMode::maximum);
+        case binder::BoundAggregateFunction::sum:
+            return std::make_unique<SumAggregateState>();
+    }
+    throw std::logic_error{"unknown aggregate function"};
+}
+
+std::vector<AggregateComputation> build_aggregate_computations(
+    std::vector<binder::BoundAggregateExpression> expressions) {
+    std::vector<AggregateComputation> computations;
+    computations.reserve(expressions.size());
+    for (auto& expression : expressions) {
+        computations.push_back(AggregateComputation{
+            build_aggregate_state(expression),
+            std::move(expression.arguments), expression.location});
+    }
+    return computations;
+}
 
 }  // namespace
 
@@ -81,37 +115,18 @@ std::unique_ptr<RowOperator> build_operator_tree(
                 -> std::unique_ptr<RowOperator> {
                 auto child = build_operator_tree(
                     std::move(aggregate.child), std::move(input_rows));
-                std::vector<AggregateComputation> computations;
-                computations.reserve(aggregate.aggregates.size());
-                for (auto& expression : aggregate.aggregates) {
-                    std::unique_ptr<AggregateState> state;
-                    switch (expression.function) {
-                        case binder::BoundAggregateFunction::count: {
-                            const auto mode = expression.arguments.empty()
-                                                  ? CountMode::all_rows
-                                                  : CountMode::non_null_values;
-                            state = std::make_unique<CountAggregateState>(mode);
-                            break;
-                        }
-                        case binder::BoundAggregateFunction::minimum:
-                            state = std::make_unique<MinMaxAggregateState>(
-                                MinMaxMode::minimum);
-                            break;
-                        case binder::BoundAggregateFunction::maximum:
-                            state = std::make_unique<MinMaxAggregateState>(
-                                MinMaxMode::maximum);
-                            break;
-                        case binder::BoundAggregateFunction::sum:
-                            state = std::make_unique<SumAggregateState>();
-                            break;
-                    }
-                    computations.push_back(AggregateComputation{
-                        std::move(state),
-                        std::move(expression.arguments),
-                        expression.location});
-                }
                 return std::make_unique<GlobalAggregateOperator>(
-                    std::move(child), std::move(computations));
+                    std::move(child), build_aggregate_computations(
+                                          std::move(aggregate.aggregates)));
+            },
+            [&input_rows](planner::PhysicalHashAggregate& aggregate)
+                -> std::unique_ptr<RowOperator> {
+                auto child = build_operator_tree(
+                    std::move(aggregate.child), std::move(input_rows));
+                return std::make_unique<HashAggregateOperator>(
+                    std::move(child), std::move(aggregate.group_keys),
+                    build_aggregate_computations(
+                        std::move(aggregate.aggregates)));
             },
             [&input_rows](planner::PhysicalHashDistinct& distinct)
                 -> std::unique_ptr<RowOperator> {

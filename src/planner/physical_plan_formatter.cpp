@@ -81,6 +81,14 @@ void append_plan(const PhysicalPlan& plan, std::size_t depth,
                     std::to_string(aggregate.aggregates.size()) + ')');
                 append_child(aggregate.child, depth + 1, lines);
             },
+            [depth, &lines](const PhysicalHashAggregate& aggregate) {
+                lines.push_back(
+                    indentation(depth) + "Hash Aggregate (keys=" +
+                    std::to_string(aggregate.group_keys.size()) +
+                    ", aggregates=" +
+                    std::to_string(aggregate.aggregates.size()) + ')');
+                append_child(aggregate.child, depth + 1, lines);
+            },
             [depth, &lines](const PhysicalHashDistinct& distinct) {
                 lines.push_back(indentation(depth) + "Hash Distinct");
                 append_child(distinct.child, depth + 1, lines);

@@ -49,6 +49,12 @@ struct PhysicalGlobalAggregate {
     PhysicalPlanPtr child;
 };
 
+struct PhysicalHashAggregate {
+    std::vector<binder::BoundExpression> group_keys;
+    std::vector<binder::BoundAggregateExpression> aggregates;
+    PhysicalPlanPtr child;
+};
+
 struct PhysicalHashDistinct {
     PhysicalPlanPtr child;
 };
@@ -62,7 +68,8 @@ struct PhysicalLimit {
 using PhysicalPlanNode =
     std::variant<PhysicalSequentialScan, PhysicalOneRow, PhysicalFilter,
                  PhysicalInMemorySort, PhysicalProjection,
-                 PhysicalGlobalAggregate, PhysicalHashDistinct,
+                 PhysicalGlobalAggregate, PhysicalHashAggregate,
+                 PhysicalHashDistinct,
                  PhysicalLimit>;
 
 struct PhysicalPlan {

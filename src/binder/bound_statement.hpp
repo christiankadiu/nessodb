@@ -40,6 +40,7 @@ struct BoundSelectStatement {
     std::vector<BoundExpression> expressions;
     std::vector<std::string> result_column_names;
     std::vector<BoundAggregateExpression> aggregates;
+    std::vector<BoundExpression> group_by;
     common::TableId table_id;
     bool distinct{};
     std::optional<BoundExpression> where;

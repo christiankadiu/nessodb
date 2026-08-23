@@ -64,9 +64,16 @@ PhysicalPlanPtr plan_physical(LogicalPlanPtr logical_plan) {
                     plan_physical(std::move(projection.child))});
             },
             [](LogicalAggregate& aggregate) {
+                auto child = plan_physical(std::move(aggregate.child));
+                if (!aggregate.group_keys.empty()) {
+                    return make_plan(PhysicalHashAggregate{
+                        std::move(aggregate.group_keys),
+                        std::move(aggregate.aggregates),
+                        std::move(child)});
+                }
                 return make_plan(PhysicalGlobalAggregate{
                     std::move(aggregate.aggregates),
-                    plan_physical(std::move(aggregate.child))});
+                    std::move(child)});
             },
             [](LogicalDistinct& distinct) {
                 return make_plan(PhysicalHashDistinct{

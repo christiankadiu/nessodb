@@ -16,6 +16,7 @@ enum class TokenType {
     distinct,
     from,
     where,
+    group,
     is,
     not_keyword,
     and_keyword,

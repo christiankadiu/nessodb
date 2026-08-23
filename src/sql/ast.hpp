@@ -173,6 +173,7 @@ struct SelectStatement {
     bool distinct{};
     std::optional<TableReference> from;
     std::optional<Expression> where;
+    std::vector<Expression> group_by;
     std::vector<OrderByTerm> order_by;
     std::optional<LimitClause> limit;
     std::optional<OffsetClause> offset;
