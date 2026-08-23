@@ -446,6 +446,58 @@ std::expected<BoundExpression, BindError> bind_expression(
         std::make_unique<BoundExpression>(std::move(*right))}};
 }
 
+bool same_value_expression(const BoundExpression& left,
+                           const BoundExpression& right) noexcept {
+    if (left.node.index() != right.node.index()) {
+        return false;
+    }
+    if (const auto* left_literal =
+            std::get_if<BoundLiteralExpression>(&left.node)) {
+        return left_literal->value ==
+               std::get<BoundLiteralExpression>(right.node).value;
+    }
+    if (const auto* left_column =
+            std::get_if<BoundColumnReferenceExpression>(&left.node)) {
+        return left_column->column_index ==
+               std::get<BoundColumnReferenceExpression>(right.node)
+                   .column_index;
+    }
+    if (const auto* left_unary =
+            std::get_if<BoundUnaryArithmeticExpression>(&left.node)) {
+        const auto& right_unary =
+            std::get<BoundUnaryArithmeticExpression>(right.node);
+        return left_unary->operation == right_unary.operation &&
+               left_unary->operand && right_unary.operand &&
+               same_value_expression(*left_unary->operand,
+                                     *right_unary.operand);
+    }
+    if (const auto* left_binary =
+            std::get_if<BoundBinaryArithmeticExpression>(&left.node)) {
+        const auto& right_binary =
+            std::get<BoundBinaryArithmeticExpression>(right.node);
+        return left_binary->operation == right_binary.operation &&
+               left_binary->left && left_binary->right &&
+               right_binary.left && right_binary.right &&
+               same_value_expression(*left_binary->left,
+                                     *right_binary.left) &&
+               same_value_expression(*left_binary->right,
+                                     *right_binary.right);
+    }
+    return false;
+}
+
+std::optional<types::LogicalType> aggregate_result_type(
+    const BoundAggregateExpression& aggregate) noexcept {
+    if (aggregate.function == BoundAggregateFunction::count ||
+        aggregate.function == BoundAggregateFunction::sum) {
+        return types::LogicalType::integer;
+    }
+    if (aggregate.arguments.empty()) {
+        return std::nullopt;
+    }
+    return aggregate.arguments.front().value_type();
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -470,6 +522,26 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     bound_statement.distinct = statement.distinct;
     if (table != nullptr) {
         bound_statement.table_id = table->id;
+    }
+    bound_statement.group_by.reserve(statement.group_by.size());
+    for (const auto& expression : statement.group_by) {
+        auto group_key = bind_expression(expression, table);
+        if (!group_key) {
+            return std::unexpected(group_key.error());
+        }
+        if (group_key->result_type() !=
+            BoundExpressionResultType::value) {
+            return std::unexpected(BindError{
+                BindErrorCode::type_mismatch,
+                expression_location(expression)});
+        }
+        bound_statement.group_by.push_back(std::move(*group_key));
+    }
+    const bool grouped = !bound_statement.group_by.empty();
+    if (statement.select_all_columns && grouped) {
+        return std::unexpected(BindError{
+            BindErrorCode::column_not_grouped,
+            expression_location(statement.group_by.front())});
     }
     bound_statement.expressions.reserve(statement.expressions.size());
     bound_statement.result_column_names.reserve(
@@ -510,12 +582,13 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
             }
             const bool count = *aggregate_function ==
                                BoundAggregateFunction::count;
-            if (has_scalar || (!count && function->star_argument) ||
+            if ((!grouped && has_scalar) ||
+                (!count && function->star_argument) ||
                 (function->star_argument && !function->arguments.empty()) ||
                 (!function->star_argument &&
                  function->arguments.size() != 1)) {
                 return std::unexpected(BindError{
-                    has_scalar
+                    !grouped && has_scalar
                         ? BindErrorCode::mixed_aggregate_and_scalar
                         : BindErrorCode::invalid_function_arguments,
                     function->location});
@@ -545,13 +618,22 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 }
                 aggregate.arguments.push_back(std::move(*argument));
             }
+            const auto output_type = aggregate_result_type(aggregate);
+            const auto aggregate_index =
+                bound_statement.aggregates.size();
             bound_statement.aggregates.push_back(std::move(aggregate));
+            if (grouped) {
+                bound_statement.expressions.emplace_back(
+                    BoundColumnReferenceExpression{
+                        bound_statement.group_by.size() + aggregate_index,
+                        function->location, output_type});
+            }
             bound_statement.result_column_names.emplace_back(
                 expression.alias ? expression.alias->name : default_name);
             has_aggregate = true;
             continue;
         }
-        if (has_aggregate) {
+        if (!grouped && has_aggregate) {
             return std::unexpected(BindError{
                 BindErrorCode::mixed_aggregate_and_scalar,
                 expression_location(expression)});
@@ -578,8 +660,27 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
         } else {
             bound_statement.result_column_names.emplace_back("?column?");
         }
-        bound_statement.expressions.push_back(
-            std::move(*bound_expression));
+        if (grouped) {
+            std::size_t group_index = 0;
+            while (group_index < bound_statement.group_by.size() &&
+                   !same_value_expression(
+                       *bound_expression,
+                       bound_statement.group_by[group_index])) {
+                ++group_index;
+            }
+            if (group_index == bound_statement.group_by.size()) {
+                return std::unexpected(BindError{
+                    BindErrorCode::column_not_grouped,
+                    expression_location(expression)});
+            }
+            bound_statement.expressions.emplace_back(
+                BoundColumnReferenceExpression{
+                    group_index, expression_location(expression),
+                    bound_statement.group_by[group_index].value_type()});
+        } else {
+            bound_statement.expressions.push_back(
+                std::move(*bound_expression));
+        }
     }
 
     if (statement.where) {
@@ -616,6 +717,27 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
             term.direction == sql::OrderDirection::ascending
                 ? BoundOrderDirection::ascending
                 : BoundOrderDirection::descending;
+        if (grouped) {
+            std::size_t group_index = 0;
+            while (group_index < bound_statement.group_by.size()) {
+                const auto* column =
+                    std::get_if<BoundColumnReferenceExpression>(
+                        &bound_statement.group_by[group_index].node);
+                if (column != nullptr &&
+                    column->column_index == *column_index) {
+                    break;
+                }
+                ++group_index;
+            }
+            if (group_index == bound_statement.group_by.size()) {
+                return std::unexpected(BindError{
+                    BindErrorCode::column_not_grouped,
+                    term.column.location});
+            }
+            bound_statement.order_by.push_back(
+                BoundOrderByTerm{group_index, direction});
+            continue;
+        }
         bound_statement.order_by.push_back(
             BoundOrderByTerm{*column_index, direction});
     }

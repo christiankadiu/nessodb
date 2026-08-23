@@ -171,8 +171,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         statement.from = TableReference{token->lexeme, token->location};
 
         auto tail = parse_table_statement_tail(
-            statement.where, &statement.order_by, &statement.limit,
-            &statement.offset);
+            statement.where, &statement.group_by, &statement.order_by,
+            &statement.limit, &statement.offset);
         if (!tail) {
             return std::unexpected(tail.error());
         }
@@ -224,7 +224,18 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             statement.from = TableReference{token->lexeme, token->location};
 
             auto tail = parse_table_statement_tail(
-                statement.where, &statement.order_by, &statement.limit,
+                statement.where, &statement.group_by, &statement.order_by,
+                &statement.limit, &statement.offset);
+            if (!tail) {
+                return std::unexpected(tail.error());
+            }
+            return statement;
+        }
+        if (delimiter->type == TokenType::group) {
+            lookahead_ = *delimiter;
+            auto tail = parse_table_statement_tail(
+                statement.where, &statement.group_by,
+                &statement.order_by, &statement.limit,
                 &statement.offset);
             if (!tail) {
                 return std::unexpected(tail.error());
@@ -686,7 +697,8 @@ std::expected<OffsetClause, ParseError> Parser::parse_offset_clause() {
 }
 
 std::expected<void, ParseError> Parser::parse_table_statement_tail(
-    std::optional<Expression>& where, std::vector<OrderByTerm>* order_by,
+    std::optional<Expression>& where, std::vector<Expression>* group_by,
+    std::vector<OrderByTerm>* order_by,
     std::optional<LimitClause>* limit,
     std::optional<OffsetClause>* offset) {
     auto token = next_token();
@@ -704,6 +716,43 @@ std::expected<void, ParseError> Parser::parse_table_statement_tail(
             return std::unexpected(token.error());
         }
         where = std::move(*expression);
+    }
+
+    if (token->type == TokenType::group && group_by != nullptr) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::by) {
+            return std::unexpected(
+                ParseError{ParseErrorCode::expected_by, token->location});
+        }
+
+        while (true) {
+            auto expression = parse_expression();
+            if (!expression) {
+                return std::unexpected(expression.error());
+            }
+            group_by->push_back(std::move(*expression));
+
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type == TokenType::comma) {
+                continue;
+            }
+            if (token->type != TokenType::order &&
+                token->type != TokenType::limit &&
+                token->type != TokenType::offset &&
+                token->type != TokenType::semicolon &&
+                token->type != TokenType::end_of_input) {
+                return std::unexpected(ParseError{
+                    ParseErrorCode::expected_comma_or_end,
+                    token->location});
+            }
+            break;
+        }
     }
 
     if (token->type == TokenType::order && order_by != nullptr) {

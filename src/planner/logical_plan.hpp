@@ -35,6 +35,7 @@ struct LogicalProjection {
 };
 
 struct LogicalAggregate {
+    std::vector<binder::BoundExpression> group_keys;
     std::vector<binder::BoundAggregateExpression> aggregates;
     LogicalPlanPtr child;
 };

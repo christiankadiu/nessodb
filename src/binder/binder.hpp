@@ -26,6 +26,7 @@ enum class BindErrorCode {
     function_not_found,
     invalid_function_arguments,
     mixed_aggregate_and_scalar,
+    column_not_grouped,
 };
 
 struct BindError {

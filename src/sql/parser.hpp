@@ -87,6 +87,7 @@ private:
     [[nodiscard]] std::expected<OffsetClause, ParseError> parse_offset_clause();
     [[nodiscard]] std::expected<void, ParseError> parse_table_statement_tail(
         std::optional<Expression>& where,
+        std::vector<Expression>* group_by = nullptr,
         std::vector<OrderByTerm>* order_by = nullptr,
         std::optional<LimitClause>* limit = nullptr,
         std::optional<OffsetClause>* offset = nullptr);
