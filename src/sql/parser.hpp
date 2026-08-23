@@ -81,6 +81,8 @@ private:
     parse_primary_expression();
     [[nodiscard]] std::expected<ColumnReferenceExpression, ParseError>
     parse_column_reference(Token first_identifier);
+    [[nodiscard]] std::expected<TableReference, ParseError>
+    parse_table_reference(Token name);
     [[nodiscard]] std::expected<Expression, ParseError>
     parse_function_call(Token name);
     [[nodiscard]] std::expected<LimitClause, ParseError> parse_limit_clause();

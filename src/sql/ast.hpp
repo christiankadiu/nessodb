@@ -142,9 +142,15 @@ struct Expression {
     std::optional<ExpressionAlias> alias;
 };
 
+struct TableAlias {
+    std::string_view name;
+    SourceLocation location;
+};
+
 struct TableReference {
     std::string_view name;
     SourceLocation location;
+    std::optional<TableAlias> alias{};
 };
 
 enum class OrderDirection {
