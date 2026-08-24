@@ -168,7 +168,11 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             return std::unexpected(
                 ParseError{ParseErrorCode::expected_identifier, token->location});
         }
-        statement.from = TableReference{token->lexeme, token->location};
+        auto table = parse_table_reference(*token);
+        if (!table) {
+            return std::unexpected(table.error());
+        }
+        statement.from = std::move(*table);
 
         auto tail = parse_table_statement_tail(
             statement.where, &statement.group_by, &statement.order_by,
@@ -221,7 +225,11 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
                     ParseError{ParseErrorCode::expected_identifier,
                                token->location});
             }
-            statement.from = TableReference{token->lexeme, token->location};
+            auto table = parse_table_reference(*token);
+            if (!table) {
+                return std::unexpected(table.error());
+            }
+            statement.from = std::move(*table);
 
             auto tail = parse_table_statement_tail(
                 statement.where, &statement.group_by, &statement.order_by,
@@ -516,6 +524,39 @@ Parser::parse_column_reference(Token first_identifier) {
         token->lexeme, token->location,
         ColumnQualifier{first_identifier.lexeme,
                         first_identifier.location}};
+}
+
+std::expected<TableReference, ParseError>
+Parser::parse_table_reference(Token name) {
+    TableReference table{name.lexeme, name.location};
+    auto token = peek_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type == TokenType::as_keyword) {
+        auto consumed = next_token();
+        if (!consumed) {
+            return std::unexpected(consumed.error());
+        }
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::identifier) {
+            return std::unexpected(ParseError{
+                ParseErrorCode::expected_identifier, token->location});
+        }
+        table.alias = TableAlias{token->lexeme, token->location};
+        return table;
+    }
+    if (token->type == TokenType::identifier) {
+        auto alias = next_token();
+        if (!alias) {
+            return std::unexpected(alias.error());
+        }
+        table.alias = TableAlias{alias->lexeme, alias->location};
+    }
+    return table;
 }
 
 std::expected<Expression, ParseError>

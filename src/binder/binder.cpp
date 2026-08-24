@@ -137,9 +137,14 @@ std::size_t find_column_index(const catalog::TableSchema& table,
 
 std::expected<std::size_t, BindError> resolve_column(
     const catalog::TableSchema& table,
-    const sql::ColumnReferenceExpression& column) {
+    const sql::ColumnReferenceExpression& column,
+    std::string_view visible_table_name = {}) {
+    if (visible_table_name.empty()) {
+        visible_table_name = table.name;
+    }
     if (column.qualifier &&
-        !common::identifiers_equal(column.qualifier->name, table.name)) {
+        !common::identifiers_equal(column.qualifier->name,
+                                   visible_table_name)) {
         return std::unexpected(BindError{
             BindErrorCode::table_not_found, column.qualifier->location});
     }
@@ -251,7 +256,8 @@ bool is_integer_expression(const BoundExpression& expression) noexcept {
 
 std::expected<BoundExpression, BindError> bind_expression(
     const sql::Expression& expression,
-    const catalog::TableSchema* table) {
+    const catalog::TableSchema* table,
+    std::string_view visible_table_name = {}) {
     if (const auto* literal =
             std::get_if<sql::LiteralExpression>(&expression.node)) {
         auto bound = bind_literal(*literal);
@@ -267,7 +273,8 @@ std::expected<BoundExpression, BindError> bind_expression(
             return std::unexpected(BindError{
                 BindErrorCode::column_requires_table, column->location});
         }
-        auto column_index = resolve_column(*table, *column);
+        auto column_index = resolve_column(
+            *table, *column, visible_table_name);
         if (!column_index) {
             return std::unexpected(column_index.error());
         }
@@ -293,7 +300,8 @@ std::expected<BoundExpression, BindError> bind_expression(
                 }
             }
         }
-        auto operand = bind_expression(*unary->operand, table);
+        auto operand = bind_expression(
+            *unary->operand, table, visible_table_name);
         if (!operand) {
             return std::unexpected(operand.error());
         }
@@ -314,7 +322,8 @@ std::expected<BoundExpression, BindError> bind_expression(
             throw std::logic_error{
                 "binary arithmetic expression requires two operands"};
         }
-        auto left = bind_expression(*binary->left, table);
+        auto left = bind_expression(
+            *binary->left, table, visible_table_name);
         if (!left) {
             return std::unexpected(left.error());
         }
@@ -323,7 +332,8 @@ std::expected<BoundExpression, BindError> bind_expression(
                 BindErrorCode::type_mismatch,
                 expression_location(*binary->left)});
         }
-        auto right = bind_expression(*binary->right, table);
+        auto right = bind_expression(
+            *binary->right, table, visible_table_name);
         if (!right) {
             return std::unexpected(right.error());
         }
@@ -345,11 +355,13 @@ std::expected<BoundExpression, BindError> bind_expression(
             throw std::logic_error{
                 "comparison expression requires two operands"};
         }
-        auto left = bind_expression(*comparison->left, table);
+        auto left = bind_expression(
+            *comparison->left, table, visible_table_name);
         if (!left) {
             return std::unexpected(left.error());
         }
-        auto right = bind_expression(*comparison->right, table);
+        auto right = bind_expression(
+            *comparison->right, table, visible_table_name);
         if (!right) {
             return std::unexpected(right.error());
         }
@@ -378,7 +390,8 @@ std::expected<BoundExpression, BindError> bind_expression(
             throw std::logic_error{
                 "null test expression requires an operand"};
         }
-        auto operand = bind_expression(*null_test->operand, table);
+        auto operand = bind_expression(
+            *null_test->operand, table, visible_table_name);
         if (!operand) {
             return std::unexpected(operand.error());
         }
@@ -398,7 +411,8 @@ std::expected<BoundExpression, BindError> bind_expression(
             throw std::logic_error{
                 "negation expression requires an operand"};
         }
-        auto operand = bind_expression(*negation->operand, table);
+        auto operand = bind_expression(
+            *negation->operand, table, visible_table_name);
         if (!operand) {
             return std::unexpected(operand.error());
         }
@@ -422,7 +436,8 @@ std::expected<BoundExpression, BindError> bind_expression(
     if (!logical.left || !logical.right) {
         throw std::logic_error{"logical expression requires two operands"};
     }
-    auto left = bind_expression(*logical.left, table);
+    auto left = bind_expression(
+        *logical.left, table, visible_table_name);
     if (!left) {
         return std::unexpected(left.error());
     }
@@ -431,7 +446,8 @@ std::expected<BoundExpression, BindError> bind_expression(
             BindErrorCode::type_mismatch,
             expression_location(*logical.left)});
     }
-    auto right = bind_expression(*logical.right, table);
+    auto right = bind_expression(
+        *logical.right, table, visible_table_name);
     if (!right) {
         return std::unexpected(right.error());
     }
@@ -511,6 +527,12 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                           statement.from->location});
         }
     }
+    const std::string_view visible_table_name =
+        table == nullptr
+            ? std::string_view{}
+            : statement.from->alias
+                  ? statement.from->alias->name
+                  : std::string_view{table->name};
 
     if (statement.select_all_columns) {
         if (table == nullptr) {
@@ -525,7 +547,8 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
     bound_statement.group_by.reserve(statement.group_by.size());
     for (const auto& expression : statement.group_by) {
-        auto group_key = bind_expression(expression, table);
+        auto group_key = bind_expression(
+            expression, table, visible_table_name);
         if (!group_key) {
             return std::unexpected(group_key.error());
         }
@@ -598,7 +621,8 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 *aggregate_function, {}, function->location};
             if (!function->star_argument) {
                 auto argument =
-                    bind_expression(*function->arguments.front(), table);
+                    bind_expression(*function->arguments.front(), table,
+                                    visible_table_name);
                 if (!argument) {
                     return std::unexpected(argument.error());
                 }
@@ -639,7 +663,8 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 expression_location(expression)});
         }
         has_scalar = true;
-        auto bound_expression = bind_expression(expression, table);
+        auto bound_expression = bind_expression(
+            expression, table, visible_table_name);
         if (!bound_expression) {
             return std::unexpected(bound_expression.error());
         }
@@ -689,7 +714,8 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 BindError{BindErrorCode::column_requires_table,
                           expression_location(*statement.where)});
         }
-        auto expression = bind_expression(*statement.where, table);
+        auto expression = bind_expression(
+            *statement.where, table, visible_table_name);
         if (!expression) {
             return std::unexpected(expression.error());
         }
@@ -709,7 +735,8 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
     }
     bound_statement.order_by.reserve(statement.order_by.size());
     for (const auto& term : statement.order_by) {
-        auto column_index = resolve_column(*table, term.column);
+        auto column_index = resolve_column(
+            *table, term.column, visible_table_name);
         if (!column_index) {
             return std::unexpected(column_index.error());
         }
