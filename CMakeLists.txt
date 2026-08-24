@@ -20,6 +20,7 @@ add_library(minidb
     src/execution/expression_evaluator.cpp
     src/execution/filter_operator.cpp
     src/execution/limit_operator.cpp
+    src/execution/nested_loop_join_operator.cpp
     src/execution/physical_operator_builder.cpp
     src/execution/projection_operator.cpp
     src/execution/select_executor.cpp
