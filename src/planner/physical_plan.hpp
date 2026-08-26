@@ -24,6 +24,12 @@ struct PhysicalFilter {
     PhysicalPlanPtr child;
 };
 
+struct PhysicalNestedLoopJoin {
+    binder::BoundExpression predicate;
+    PhysicalPlanPtr left;
+    PhysicalPlanPtr right;
+};
+
 enum class PhysicalSortDirection {
     ascending,
     descending,
@@ -67,9 +73,9 @@ struct PhysicalLimit {
 
 using PhysicalPlanNode =
     std::variant<PhysicalSequentialScan, PhysicalOneRow, PhysicalFilter,
-                 PhysicalInMemorySort, PhysicalProjection,
-                 PhysicalGlobalAggregate, PhysicalHashAggregate,
-                 PhysicalHashDistinct,
+                 PhysicalNestedLoopJoin, PhysicalInMemorySort,
+                 PhysicalProjection, PhysicalGlobalAggregate,
+                 PhysicalHashAggregate, PhysicalHashDistinct,
                  PhysicalLimit>;
 
 struct PhysicalPlan {

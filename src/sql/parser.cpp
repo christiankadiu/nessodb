@@ -175,8 +175,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         statement.from = std::move(*table);
 
         auto tail = parse_table_statement_tail(
-            statement.where, &statement.group_by, &statement.order_by,
-            &statement.limit, &statement.offset);
+            statement.where, &statement.joins, &statement.group_by,
+            &statement.order_by, &statement.limit, &statement.offset);
         if (!tail) {
             return std::unexpected(tail.error());
         }
@@ -232,8 +232,8 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
             statement.from = std::move(*table);
 
             auto tail = parse_table_statement_tail(
-                statement.where, &statement.group_by, &statement.order_by,
-                &statement.limit, &statement.offset);
+                statement.where, &statement.joins, &statement.group_by,
+                &statement.order_by, &statement.limit, &statement.offset);
             if (!tail) {
                 return std::unexpected(tail.error());
             }
@@ -242,7 +242,7 @@ std::expected<SelectStatement, ParseError> Parser::parse_select_statement() {
         if (delimiter->type == TokenType::group) {
             lookahead_ = *delimiter;
             auto tail = parse_table_statement_tail(
-                statement.where, &statement.group_by,
+                statement.where, &statement.joins, &statement.group_by,
                 &statement.order_by, &statement.limit,
                 &statement.offset);
             if (!tail) {
@@ -738,13 +738,49 @@ std::expected<OffsetClause, ParseError> Parser::parse_offset_clause() {
 }
 
 std::expected<void, ParseError> Parser::parse_table_statement_tail(
-    std::optional<Expression>& where, std::vector<Expression>* group_by,
+    std::optional<Expression>& where, std::vector<JoinClause>* joins,
+    std::vector<Expression>* group_by,
     std::vector<OrderByTerm>* order_by,
     std::optional<LimitClause>* limit,
     std::optional<OffsetClause>* offset) {
     auto token = next_token();
     if (!token) {
         return std::unexpected(token.error());
+    }
+
+    while (token->type == TokenType::join && joins != nullptr) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::identifier) {
+            return std::unexpected(ParseError{
+                ParseErrorCode::expected_identifier, token->location});
+        }
+        auto table = parse_table_reference(*token);
+        if (!table) {
+            return std::unexpected(table.error());
+        }
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+        if (token->type != TokenType::on) {
+            return std::unexpected(ParseError{
+                ParseErrorCode::expected_on, token->location});
+        }
+        auto condition = parse_expression();
+        if (!condition) {
+            return std::unexpected(condition.error());
+        }
+        joins->push_back(JoinClause{
+            std::move(*table), std::move(*condition)});
+
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
     }
 
     if (token->type == TokenType::where) {

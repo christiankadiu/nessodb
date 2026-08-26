@@ -42,6 +42,12 @@ PhysicalPlanPtr plan_physical(LogicalPlanPtr logical_plan) {
                     std::move(filter.predicate),
                     plan_physical(std::move(filter.child))});
             },
+            [](LogicalNestedLoopJoin& join) {
+                return make_plan(PhysicalNestedLoopJoin{
+                    std::move(join.predicate),
+                    plan_physical(std::move(join.left)),
+                    plan_physical(std::move(join.right))});
+            },
             [](LogicalSort& sort) {
                 std::vector<PhysicalSortKey> keys;
                 keys.reserve(sort.terms.size());

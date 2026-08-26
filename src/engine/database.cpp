@@ -118,27 +118,39 @@ std::expected<QueryResult, QueryError> Database::execute(
     auto result_column_names =
         std::move(bound->result_column_names);
 
-    std::vector<storage::Row> stored_rows;
+    std::vector<common::TableId> table_ids;
     if (bound->table_id.is_valid()) {
+        table_ids.push_back(bound->table_id);
+    }
+    for (const auto& join : bound->joins) {
+        table_ids.push_back(join.table_id);
+    }
+
+    std::vector<execution::TableInput> table_inputs;
+    table_inputs.reserve(table_ids.size());
+    for (const auto table_id : table_ids) {
+        std::vector<storage::Row> stored_rows;
         if (const auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
-            auto scanned = heap->scan(bound->table_id);
+            auto scanned = heap->scan(table_id);
             if (!scanned) {
                 throw std::logic_error{"catalog and heap table state diverged"};
             }
             stored_rows = std::move(*scanned);
         } else {
             auto scanned = std::get<storage::StorageManager>(storage_).scan(
-                bound->table_id);
+                table_id);
             if (!scanned) {
                 return std::unexpected(QueryError{StorageError{
                     std::move(scanned.error())}});
             }
             stored_rows = std::move(*scanned);
         }
+        table_inputs.push_back(execution::TableInput{
+            table_id, std::move(stored_rows)});
     }
 
-    auto selected_rows =
-        execution::execute_select(std::move(*bound), std::move(stored_rows));
+    auto selected_rows = execution::execute_select_from_tables(
+        std::move(*bound), std::move(table_inputs));
     if (!selected_rows) {
         return std::unexpected(QueryError{
             execution_error(selected_rows.error())});

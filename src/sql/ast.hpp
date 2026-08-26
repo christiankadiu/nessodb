@@ -153,6 +153,11 @@ struct TableReference {
     std::optional<TableAlias> alias{};
 };
 
+struct JoinClause {
+    TableReference table;
+    Expression condition;
+};
+
 enum class OrderDirection {
     ascending,
     descending,
@@ -178,6 +183,7 @@ struct SelectStatement {
     bool select_all_columns{};
     bool distinct{};
     std::optional<TableReference> from;
+    std::vector<JoinClause> joins;
     std::optional<Expression> where;
     std::vector<Expression> group_by;
     std::vector<OrderByTerm> order_by;

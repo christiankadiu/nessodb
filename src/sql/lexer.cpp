@@ -147,6 +147,10 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::distinct;
     } else if (equals_case_insensitive(token.lexeme, "from")) {
         token.type = TokenType::from;
+    } else if (equals_case_insensitive(token.lexeme, "join")) {
+        token.type = TokenType::join;
+    } else if (equals_case_insensitive(token.lexeme, "on")) {
+        token.type = TokenType::on;
     } else if (equals_case_insensitive(token.lexeme, "where")) {
         token.type = TokenType::where;
     } else if (equals_case_insensitive(token.lexeme, "group")) {

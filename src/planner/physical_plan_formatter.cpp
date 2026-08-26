@@ -50,6 +50,11 @@ void append_plan(const PhysicalPlan& plan, std::size_t depth,
                 lines.push_back(indentation(depth) + "Filter");
                 append_child(filter.child, depth + 1, lines);
             },
+            [depth, &lines](const PhysicalNestedLoopJoin& join) {
+                lines.push_back(indentation(depth) + "Nested Loop Join");
+                append_child(join.left, depth + 1, lines);
+                append_child(join.right, depth + 1, lines);
+            },
             [depth, &lines](const PhysicalInMemorySort& sort) {
                 std::string line = indentation(depth) +
                                    "In-Memory Sort (keys=";

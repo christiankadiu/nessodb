@@ -20,6 +20,13 @@ LogicalPlanPtr plan_select(binder::BoundSelectStatement statement) {
                               ? make_plan(LogicalTableScan{statement.table_id})
                               : make_plan(LogicalOneRow{});
 
+    for (auto& join : statement.joins) {
+        auto right = make_plan(LogicalTableScan{join.table_id});
+        plan = make_plan(LogicalNestedLoopJoin{
+            std::move(join.condition), std::move(plan),
+            std::move(right)});
+    }
+
     if (statement.where) {
         plan = make_plan(LogicalFilter{
             std::move(*statement.where), std::move(plan)});
