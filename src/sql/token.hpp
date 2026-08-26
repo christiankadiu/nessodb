@@ -15,6 +15,8 @@ enum class TokenType {
     select,
     distinct,
     from,
+    join,
+    on,
     where,
     group,
     is,

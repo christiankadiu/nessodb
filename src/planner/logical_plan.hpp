@@ -24,6 +24,12 @@ struct LogicalFilter {
     LogicalPlanPtr child;
 };
 
+struct LogicalNestedLoopJoin {
+    binder::BoundExpression predicate;
+    LogicalPlanPtr left;
+    LogicalPlanPtr right;
+};
+
 struct LogicalSort {
     std::vector<binder::BoundOrderByTerm> terms;
     LogicalPlanPtr child;
@@ -51,9 +57,9 @@ struct LogicalLimit {
 };
 
 using LogicalPlanNode =
-    std::variant<LogicalTableScan, LogicalOneRow, LogicalFilter, LogicalSort,
-                 LogicalProjection, LogicalAggregate, LogicalDistinct,
-                 LogicalLimit>;
+    std::variant<LogicalTableScan, LogicalOneRow, LogicalFilter,
+                 LogicalNestedLoopJoin, LogicalSort, LogicalProjection,
+                 LogicalAggregate, LogicalDistinct, LogicalLimit>;
 
 struct LogicalPlan {
     LogicalPlanNode node;

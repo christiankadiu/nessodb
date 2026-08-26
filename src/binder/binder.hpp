@@ -27,6 +27,8 @@ enum class BindErrorCode {
     invalid_function_arguments,
     mixed_aggregate_and_scalar,
     column_not_grouped,
+    ambiguous_column,
+    duplicate_table,
 };
 
 struct BindError {

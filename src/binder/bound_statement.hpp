@@ -36,11 +36,17 @@ struct BoundAggregateExpression {
     sql::SourceLocation location;
 };
 
+struct BoundJoin {
+    common::TableId table_id;
+    BoundExpression condition;
+};
+
 struct BoundSelectStatement {
     std::vector<BoundExpression> expressions;
     std::vector<std::string> result_column_names;
     std::vector<BoundAggregateExpression> aggregates;
     std::vector<BoundExpression> group_by;
+    std::vector<BoundJoin> joins;
     common::TableId table_id;
     bool distinct{};
     std::optional<BoundExpression> where;

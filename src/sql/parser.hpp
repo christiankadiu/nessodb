@@ -39,6 +39,7 @@ enum class ParseErrorCode {
     expected_values,
     expected_by,
     expected_integer_literal,
+    expected_on,
 };
 
 struct ParseError {
@@ -89,6 +90,7 @@ private:
     [[nodiscard]] std::expected<OffsetClause, ParseError> parse_offset_clause();
     [[nodiscard]] std::expected<void, ParseError> parse_table_statement_tail(
         std::optional<Expression>& where,
+        std::vector<JoinClause>* joins = nullptr,
         std::vector<Expression>* group_by = nullptr,
         std::vector<OrderByTerm>* order_by = nullptr,
         std::optional<LimitClause>* limit = nullptr,

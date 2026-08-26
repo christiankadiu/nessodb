@@ -5,6 +5,7 @@
 #include "execution/global_aggregate_operator.hpp"
 #include "execution/hash_aggregate_operator.hpp"
 #include "execution/limit_operator.hpp"
+#include "execution/nested_loop_join_operator.hpp"
 #include "execution/projection_operator.hpp"
 #include "execution/sort_operator.hpp"
 #include "execution/vector_scan_operator.hpp"
@@ -59,38 +60,62 @@ std::vector<AggregateComputation> build_aggregate_computations(
     return computations;
 }
 
-}  // namespace
-
-std::unique_ptr<RowOperator> build_operator_tree(
+std::unique_ptr<RowOperator> build_operator_tree_impl(
     planner::PhysicalPlanPtr plan,
-    std::vector<storage::Row> input_rows) {
+    std::vector<TableInput>& table_inputs) {
     if (!plan) {
         throw std::invalid_argument{"physical plan must not be null"};
     }
 
     return std::visit(
         Overloaded{
-            [&input_rows](planner::PhysicalSequentialScan&)
+            [&table_inputs](planner::PhysicalSequentialScan& scan)
                 -> std::unique_ptr<RowOperator> {
+                auto input = table_inputs.begin();
+                while (input != table_inputs.end() &&
+                       input->table_id != scan.table_id) {
+                    ++input;
+                }
+                if (input == table_inputs.end() &&
+                    table_inputs.size() == 1 &&
+                    !table_inputs.front().table_id.is_valid()) {
+                    input = table_inputs.begin();
+                }
+                if (input == table_inputs.end()) {
+                    throw std::logic_error{
+                        "physical scan has no matching table input"};
+                }
+                auto rows = std::move(input->rows);
+                table_inputs.erase(input);
                 return std::make_unique<VectorScanOperator>(
-                    std::move(input_rows));
+                    std::move(rows));
             },
             [](planner::PhysicalOneRow&)
                 -> std::unique_ptr<RowOperator> {
                 return std::make_unique<VectorScanOperator>(
                     std::vector<storage::Row>(1));
             },
-            [&input_rows](planner::PhysicalFilter& filter)
+            [&table_inputs](planner::PhysicalFilter& filter)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(filter.child), std::move(input_rows));
+                auto child = build_operator_tree_impl(
+                    std::move(filter.child), table_inputs);
                 return std::make_unique<FilterOperator>(
                     std::move(child), std::move(filter.predicate));
             },
-            [&input_rows](planner::PhysicalInMemorySort& sort)
+            [&table_inputs](planner::PhysicalNestedLoopJoin& join)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(sort.child), std::move(input_rows));
+                auto left = build_operator_tree_impl(
+                    std::move(join.left), table_inputs);
+                auto right = build_operator_tree_impl(
+                    std::move(join.right), table_inputs);
+                return std::make_unique<NestedLoopJoinOperator>(
+                    std::move(left), std::move(right),
+                    std::move(join.predicate));
+            },
+            [&table_inputs](planner::PhysicalInMemorySort& sort)
+                -> std::unique_ptr<RowOperator> {
+                auto child = build_operator_tree_impl(
+                    std::move(sort.child), table_inputs);
                 std::vector<SortKey> keys;
                 keys.reserve(sort.keys.size());
                 for (const auto& key : sort.keys) {
@@ -104,44 +129,60 @@ std::unique_ptr<RowOperator> build_operator_tree(
                 return std::make_unique<SortOperator>(
                     std::move(child), std::move(keys));
             },
-            [&input_rows](planner::PhysicalProjection& projection)
+            [&table_inputs](planner::PhysicalProjection& projection)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(projection.child), std::move(input_rows));
+                auto child = build_operator_tree_impl(
+                    std::move(projection.child), table_inputs);
                 return std::make_unique<ProjectionOperator>(
                     std::move(child), std::move(projection.expressions));
             },
-            [&input_rows](planner::PhysicalGlobalAggregate& aggregate)
+            [&table_inputs](planner::PhysicalGlobalAggregate& aggregate)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(aggregate.child), std::move(input_rows));
+                auto child = build_operator_tree_impl(
+                    std::move(aggregate.child), table_inputs);
                 return std::make_unique<GlobalAggregateOperator>(
                     std::move(child), build_aggregate_computations(
                                           std::move(aggregate.aggregates)));
             },
-            [&input_rows](planner::PhysicalHashAggregate& aggregate)
+            [&table_inputs](planner::PhysicalHashAggregate& aggregate)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(aggregate.child), std::move(input_rows));
+                auto child = build_operator_tree_impl(
+                    std::move(aggregate.child), table_inputs);
                 return std::make_unique<HashAggregateOperator>(
                     std::move(child), std::move(aggregate.group_keys),
                     build_aggregate_computations(
                         std::move(aggregate.aggregates)));
             },
-            [&input_rows](planner::PhysicalHashDistinct& distinct)
+            [&table_inputs](planner::PhysicalHashDistinct& distinct)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(distinct.child), std::move(input_rows));
+                auto child = build_operator_tree_impl(
+                    std::move(distinct.child), table_inputs);
                 return std::make_unique<DistinctOperator>(std::move(child));
             },
-            [&input_rows](planner::PhysicalLimit& limit)
+            [&table_inputs](planner::PhysicalLimit& limit)
                 -> std::unique_ptr<RowOperator> {
-                auto child = build_operator_tree(
-                    std::move(limit.child), std::move(input_rows));
+                auto child = build_operator_tree_impl(
+                    std::move(limit.child), table_inputs);
                 return std::make_unique<LimitOperator>(
                     std::move(child), limit.limit, limit.offset);
             }},
         plan->node);
+}
+
+}  // namespace
+
+std::unique_ptr<RowOperator> build_operator_tree(
+    planner::PhysicalPlanPtr plan,
+    std::vector<storage::Row> input_rows) {
+    std::vector<TableInput> inputs;
+    inputs.push_back(TableInput{{}, std::move(input_rows)});
+    return build_operator_tree_impl(std::move(plan), inputs);
+}
+
+std::unique_ptr<RowOperator> build_operator_tree_for_tables(
+    planner::PhysicalPlanPtr plan,
+    std::vector<TableInput> table_inputs) {
+    return build_operator_tree_impl(std::move(plan), table_inputs);
 }
 
 }  // namespace minidb::execution
