@@ -45,6 +45,7 @@ add_library(minidb
     src/storage/record/record_codec.cpp
     src/storage/storage_manager.cpp
     src/transaction/transaction.cpp
+    src/transaction/transaction_manager.cpp
 )
 add_library(MiniDB::minidb ALIAS minidb)
 

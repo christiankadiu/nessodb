@@ -6,6 +6,8 @@
 
 namespace minidb::transaction {
 
+class TransactionManager;
+
 enum class TransactionState {
     active,
     committed,
@@ -14,7 +16,9 @@ enum class TransactionState {
 
 enum class TransactionErrorCode {
     invalid_transaction_id,
+    transaction_id_exhausted,
     transaction_not_active,
+    transaction_not_owned,
 };
 
 struct TransactionError {
@@ -23,9 +27,6 @@ struct TransactionError {
 
 class Transaction {
 public:
-    [[nodiscard]] static std::expected<Transaction, TransactionError> start(
-        common::TransactionId id) noexcept;
-
     Transaction(const Transaction&) = delete;
     Transaction& operator=(const Transaction&) = delete;
     Transaction(Transaction&& other) noexcept;
@@ -35,11 +36,15 @@ public:
     [[nodiscard]] TransactionState state() const noexcept;
     [[nodiscard]] bool is_active() const noexcept;
 
+private:
+    friend class TransactionManager;
+
+    [[nodiscard]] static std::expected<Transaction, TransactionError> start(
+        common::TransactionId id) noexcept;
+    explicit Transaction(common::TransactionId id) noexcept;
+
     [[nodiscard]] std::expected<void, TransactionError> commit() noexcept;
     [[nodiscard]] std::expected<void, TransactionError> abort() noexcept;
-
-private:
-    explicit Transaction(common::TransactionId id) noexcept;
 
     common::TransactionId id_;
     TransactionState state_{TransactionState::active};
