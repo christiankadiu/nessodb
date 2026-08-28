@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transaction/lock_manager.hpp"
 #include "transaction/transaction.hpp"
 
 #include <cstddef>
@@ -8,10 +9,12 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <variant>
 
 namespace minidb::transaction {
 
 using TransactionHandle = std::shared_ptr<const Transaction>;
+using TransactionLockError = std::variant<TransactionError, LockError>;
 
 class TransactionManager {
 public:
@@ -28,6 +31,9 @@ public:
         const TransactionHandle& transaction);
     [[nodiscard]] std::expected<void, TransactionError> rollback(
         const TransactionHandle& transaction);
+    [[nodiscard]] std::expected<void, TransactionLockError> acquire_table_lock(
+        const TransactionHandle& transaction, common::TableId table_id,
+        LockMode mode);
 
     [[nodiscard]] std::size_t active_transaction_count() const;
 
@@ -38,6 +44,7 @@ private:
     mutable std::mutex mutex_;
     std::uint64_t next_transaction_id_{1};
     std::unordered_map<std::uint64_t, std::shared_ptr<Transaction>> active_;
+    LockManager lock_manager_;
 };
 
 }  // namespace minidb::transaction

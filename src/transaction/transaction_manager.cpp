@@ -8,8 +8,8 @@ namespace minidb::transaction {
 TransactionManager::~TransactionManager() {
     const std::scoped_lock lock{mutex_};
     for (const auto& [id, transaction] : active_) {
-        (void)id;
         (void)transaction->abort();
+        lock_manager_.release_all(common::TransactionId{id});
     }
 }
 
@@ -49,6 +49,7 @@ std::expected<void, TransactionError> TransactionManager::commit(
     if (!committed) {
         return std::unexpected(committed.error());
     }
+    lock_manager_.release_all((*active)->id());
     active_.erase((*active)->id().value);
     return {};
 }
@@ -65,7 +66,25 @@ std::expected<void, TransactionError> TransactionManager::rollback(
     if (!aborted) {
         return std::unexpected(aborted.error());
     }
+    lock_manager_.release_all((*active)->id());
     active_.erase((*active)->id().value);
+    return {};
+}
+
+std::expected<void, TransactionLockError>
+TransactionManager::acquire_table_lock(
+    const TransactionHandle& transaction, common::TableId table_id,
+    LockMode mode) {
+    const std::scoped_lock lock{mutex_};
+    auto active = find_active(transaction);
+    if (!active) {
+        return std::unexpected(TransactionLockError{active.error()});
+    }
+
+    auto acquired = lock_manager_.acquire((*active)->id(), table_id, mode);
+    if (!acquired) {
+        return std::unexpected(TransactionLockError{acquired.error()});
+    }
     return {};
 }
 
