@@ -44,6 +44,7 @@ add_library(minidb
     src/storage/page/slotted_page.cpp
     src/storage/record/record_codec.cpp
     src/storage/storage_manager.cpp
+    src/transaction/lock_manager.cpp
     src/transaction/transaction.cpp
     src/transaction/transaction_manager.cpp
 )

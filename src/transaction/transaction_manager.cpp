@@ -6,13 +6,15 @@
 namespace minidb::transaction {
 
 TransactionManager::~TransactionManager() {
+    const std::scoped_lock lock{mutex_};
     for (const auto& [id, transaction] : active_) {
-        (void)id;
         (void)transaction->abort();
+        lock_manager_.release_all(common::TransactionId{id});
     }
 }
 
 std::expected<TransactionHandle, TransactionError> TransactionManager::begin() {
+    const std::scoped_lock lock{mutex_};
     if (next_transaction_id_ == 0) {
         return std::unexpected(TransactionError{
             TransactionErrorCode::transaction_id_exhausted});
@@ -37,6 +39,7 @@ std::expected<TransactionHandle, TransactionError> TransactionManager::begin() {
 
 std::expected<void, TransactionError> TransactionManager::commit(
     const TransactionHandle& transaction) {
+    const std::scoped_lock lock{mutex_};
     auto active = find_active(transaction);
     if (!active) {
         return std::unexpected(active.error());
@@ -46,12 +49,14 @@ std::expected<void, TransactionError> TransactionManager::commit(
     if (!committed) {
         return std::unexpected(committed.error());
     }
+    lock_manager_.release_all((*active)->id());
     active_.erase((*active)->id().value);
     return {};
 }
 
 std::expected<void, TransactionError> TransactionManager::rollback(
     const TransactionHandle& transaction) {
+    const std::scoped_lock lock{mutex_};
     auto active = find_active(transaction);
     if (!active) {
         return std::unexpected(active.error());
@@ -61,11 +66,30 @@ std::expected<void, TransactionError> TransactionManager::rollback(
     if (!aborted) {
         return std::unexpected(aborted.error());
     }
+    lock_manager_.release_all((*active)->id());
     active_.erase((*active)->id().value);
     return {};
 }
 
-std::size_t TransactionManager::active_transaction_count() const noexcept {
+std::expected<void, TransactionLockError>
+TransactionManager::acquire_table_lock(
+    const TransactionHandle& transaction, common::TableId table_id,
+    LockMode mode) {
+    const std::scoped_lock lock{mutex_};
+    auto active = find_active(transaction);
+    if (!active) {
+        return std::unexpected(TransactionLockError{active.error()});
+    }
+
+    auto acquired = lock_manager_.acquire((*active)->id(), table_id, mode);
+    if (!acquired) {
+        return std::unexpected(TransactionLockError{acquired.error()});
+    }
+    return {};
+}
+
+std::size_t TransactionManager::active_transaction_count() const {
+    const std::scoped_lock lock{mutex_};
     return active_.size();
 }
 

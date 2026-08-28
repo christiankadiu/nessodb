@@ -2,6 +2,7 @@
 
 #include "common/transaction_id.hpp"
 
+#include <atomic>
 #include <expected>
 
 namespace minidb::transaction {
@@ -47,7 +48,7 @@ private:
     [[nodiscard]] std::expected<void, TransactionError> abort() noexcept;
 
     common::TransactionId id_;
-    TransactionState state_{TransactionState::active};
+    std::atomic<TransactionState> state_{TransactionState::active};
 };
 
 }  // namespace minidb::transaction
