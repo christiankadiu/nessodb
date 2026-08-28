@@ -6,6 +6,7 @@
 namespace minidb::transaction {
 
 TransactionManager::~TransactionManager() {
+    const std::scoped_lock lock{mutex_};
     for (const auto& [id, transaction] : active_) {
         (void)id;
         (void)transaction->abort();
@@ -13,6 +14,7 @@ TransactionManager::~TransactionManager() {
 }
 
 std::expected<TransactionHandle, TransactionError> TransactionManager::begin() {
+    const std::scoped_lock lock{mutex_};
     if (next_transaction_id_ == 0) {
         return std::unexpected(TransactionError{
             TransactionErrorCode::transaction_id_exhausted});
@@ -37,6 +39,7 @@ std::expected<TransactionHandle, TransactionError> TransactionManager::begin() {
 
 std::expected<void, TransactionError> TransactionManager::commit(
     const TransactionHandle& transaction) {
+    const std::scoped_lock lock{mutex_};
     auto active = find_active(transaction);
     if (!active) {
         return std::unexpected(active.error());
@@ -52,6 +55,7 @@ std::expected<void, TransactionError> TransactionManager::commit(
 
 std::expected<void, TransactionError> TransactionManager::rollback(
     const TransactionHandle& transaction) {
+    const std::scoped_lock lock{mutex_};
     auto active = find_active(transaction);
     if (!active) {
         return std::unexpected(active.error());
@@ -65,7 +69,8 @@ std::expected<void, TransactionError> TransactionManager::rollback(
     return {};
 }
 
-std::size_t TransactionManager::active_transaction_count() const noexcept {
+std::size_t TransactionManager::active_transaction_count() const {
+    const std::scoped_lock lock{mutex_};
     return active_.size();
 }
 

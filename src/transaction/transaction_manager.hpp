@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace minidb::transaction {
@@ -28,12 +29,13 @@ public:
     [[nodiscard]] std::expected<void, TransactionError> rollback(
         const TransactionHandle& transaction);
 
-    [[nodiscard]] std::size_t active_transaction_count() const noexcept;
+    [[nodiscard]] std::size_t active_transaction_count() const;
 
 private:
     [[nodiscard]] std::expected<std::shared_ptr<Transaction>, TransactionError>
     find_active(const TransactionHandle& transaction) const;
 
+    mutable std::mutex mutex_;
     std::uint64_t next_transaction_id_{1};
     std::unordered_map<std::uint64_t, std::shared_ptr<Transaction>> active_;
 };
