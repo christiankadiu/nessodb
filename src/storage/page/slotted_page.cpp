@@ -315,6 +315,40 @@ std::expected<void, SlottedPageError> SlottedPage::erase(
     return {};
 }
 
+std::expected<void, SlottedPageError> SlottedPage::restore(
+    SlotId slot_id, std::span<const std::byte> record) noexcept {
+    if (!slot_id.is_valid() || slot_id.value >= slot_count()) {
+        return std::unexpected(SlottedPageError::invalid_slot);
+    }
+    if (record.empty()) {
+        return std::unexpected(SlottedPageError::empty_record);
+    }
+
+    const std::size_t entry = slot_offset(slot_id.value);
+    if (*read_u16(page_, entry + 2) != 0) {
+        return std::unexpected(SlottedPageError::occupied_slot);
+    }
+    if (record.size() > free_space()) {
+        return std::unexpected(SlottedPageError::page_full);
+    }
+
+    const std::uint16_t old_free_end =
+        *read_u16(page_, free_space_end_offset);
+    const auto record_offset =
+        static_cast<std::uint16_t>(old_free_end - record.size());
+    std::copy(record.begin(), record.end(), page_.begin() + record_offset);
+
+    const bool encoded =
+        write_u16(page_, entry, record_offset) &&
+        write_u16(page_, entry + 2,
+                  static_cast<std::uint16_t>(record.size())) &&
+        write_u16(page_, free_space_end_offset, record_offset);
+    if (!encoded) {
+        return std::unexpected(SlottedPageError::corrupted_slot_directory);
+    }
+    return {};
+}
+
 SlottedPage::SlottedPage(std::span<std::byte> page, PageHeader header) noexcept
     : page_(page), header_(header) {}
 

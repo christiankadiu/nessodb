@@ -181,6 +181,25 @@ std::expected<void, StorageManagerError> StorageManager::erase(
     return {};
 }
 
+std::expected<void, StorageManagerError> StorageManager::restore(
+    common::TableId table_id, RecordId record_id, const Row& row) {
+    const auto table = state_->table_heaps.find(table_id.value);
+    if (!table_id.is_valid() || table == state_->table_heaps.end()) {
+        return std::unexpected(
+            StorageManagerError{StorageManagerErrorCode::table_not_found});
+    }
+
+    auto restored = table->second.restore(record_id, row);
+    if (!restored) {
+        return std::unexpected(StorageManagerError{restored.error()});
+    }
+    auto flushed = state_->buffer_pool.flush();
+    if (!flushed) {
+        return std::unexpected(StorageManagerError{flushed.error()});
+    }
+    return {};
+}
+
 std::expected<std::vector<Row>, StorageManagerError> StorageManager::scan(
     common::TableId table_id) const {
     const auto table = state_->table_heaps.find(table_id.value);

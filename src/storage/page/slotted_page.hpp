@@ -40,6 +40,7 @@ enum class SlottedPageError {
     page_full,
     invalid_slot,
     deleted_slot,
+    occupied_slot,
 };
 
 class SlottedPage {
@@ -63,6 +64,8 @@ public:
         SlotId slot_id, std::span<const std::byte> record) noexcept;
     [[nodiscard]] std::expected<void, SlottedPageError> erase(
         SlotId slot_id) noexcept;
+    [[nodiscard]] std::expected<void, SlottedPageError> restore(
+        SlotId slot_id, std::span<const std::byte> record) noexcept;
 
 private:
     SlottedPage(std::span<std::byte> page, PageHeader header) noexcept;
