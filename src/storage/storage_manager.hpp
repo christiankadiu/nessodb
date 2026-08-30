@@ -54,6 +54,8 @@ public:
         common::TableId table_id, RecordId record_id, const Row& row);
     [[nodiscard]] std::expected<void, StorageManagerError> erase(
         common::TableId table_id, RecordId record_id);
+    [[nodiscard]] std::expected<void, StorageManagerError> restore(
+        common::TableId table_id, RecordId record_id, const Row& row);
     [[nodiscard]] std::expected<std::vector<Row>, StorageManagerError> scan(
         common::TableId table_id) const;
     [[nodiscard]] std::expected<std::vector<StoredRow>, StorageManagerError>

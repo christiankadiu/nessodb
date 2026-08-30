@@ -18,6 +18,7 @@ enum class HeapError {
     table_not_found,
     invalid_row_id,
     row_not_found,
+    row_already_exists,
 };
 
 struct InMemoryRowId {
@@ -47,6 +48,8 @@ public:
         common::TableId table_id, InMemoryRowId row_id, Row row);
     [[nodiscard]] std::expected<void, HeapError> erase(
         common::TableId table_id, InMemoryRowId row_id);
+    [[nodiscard]] std::expected<void, HeapError> restore(
+        common::TableId table_id, InMemoryRowId row_id, Row row);
     [[nodiscard]] std::expected<std::vector<Row>, HeapError> scan(
         common::TableId table_id) const;
     [[nodiscard]] std::expected<std::vector<InMemoryStoredRow>, HeapError>

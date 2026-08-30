@@ -42,6 +42,8 @@ public:
         RecordId record_id, const Row& row);
     [[nodiscard]] std::expected<void, TableHeapError> erase(
         RecordId record_id);
+    [[nodiscard]] std::expected<void, TableHeapError> restore(
+        RecordId record_id, const Row& row);
     [[nodiscard]] std::expected<std::vector<Row>, TableHeapError> scan() const;
     [[nodiscard]] std::expected<std::vector<StoredRow>, TableHeapError>
     scan_records() const;
