@@ -106,11 +106,150 @@ std::expected<QueryResult, QueryError> Database::execute(std::string_view source
         return std::unexpected(QueryError{parsed.error()});
     }
 
-    return std::visit([this](const auto& statement) { return execute(statement); }, *parsed);
+    const bool autocommit = !active_transaction_;
+    if (autocommit) {
+        auto started = start_transaction(false);
+        if (!started) {
+            return std::unexpected(started.error());
+        }
+    }
+
+    const std::size_t undo_position = active_transaction_->undo.size();
+    std::expected<QueryResult, QueryError> result;
+    try {
+        result = std::visit(
+            [this](const auto& statement) {
+                return execute(statement, *active_transaction_);
+            },
+            *parsed);
+    } catch (...) {
+        const auto undone = rollback_to(undo_position);
+        if (autocommit && undone) {
+            (void)rollback_transaction();
+        }
+        throw;
+    }
+
+    if (!result) {
+        auto undone = rollback_to(undo_position);
+        if (!undone) {
+            return std::unexpected(undone.error());
+        }
+        if (autocommit) {
+            auto rolled_back = rollback_transaction();
+            if (!rolled_back) {
+                return std::unexpected(rolled_back.error());
+            }
+        }
+        return std::unexpected(result.error());
+    }
+
+    if (autocommit) {
+        auto committed = commit_transaction();
+        if (!committed) {
+            return std::unexpected(committed.error());
+        }
+    }
+    return result;
+}
+
+std::expected<void, QueryError> Database::begin_transaction() {
+    return start_transaction(true);
+}
+
+std::expected<void, QueryError> Database::commit_transaction() {
+    if (!active_transaction_) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::no_active_transaction}});
+    }
+
+    auto committed = transaction_manager_->commit(active_transaction_->handle);
+    if (!committed) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::transaction_state_error}});
+    }
+    active_transaction_.reset();
+    return {};
+}
+
+std::expected<void, QueryError> Database::rollback_transaction() {
+    if (!active_transaction_) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::no_active_transaction}});
+    }
+
+    auto undone = rollback_to(0);
+    if (!undone) {
+        return std::unexpected(undone.error());
+    }
+    auto rolled_back =
+        transaction_manager_->rollback(active_transaction_->handle);
+    if (!rolled_back) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::transaction_state_error}});
+    }
+    active_transaction_.reset();
+    return {};
+}
+
+bool Database::has_active_transaction() const noexcept {
+    return active_transaction_.has_value();
+}
+
+std::expected<void, QueryError> Database::start_transaction(
+    bool explicit_transaction) {
+    if (active_transaction_) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::transaction_already_active}});
+    }
+    auto started = transaction_manager_->begin();
+    if (!started) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::transaction_state_error}});
+    }
+    active_transaction_.emplace(
+        ActiveTransaction{*started, storage::UndoLog{}, explicit_transaction});
+    return {};
+}
+
+std::expected<void, QueryError> Database::rollback_to(
+    std::size_t undo_position) {
+    if (!active_transaction_) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::no_active_transaction}});
+    }
+    auto undone = std::visit(
+        [this, undo_position](auto& storage) {
+            return active_transaction_->undo.rollback_to(
+                undo_position, storage);
+        },
+        storage_);
+    if (!undone) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::rollback_failed}});
+    }
+    return {};
+}
+
+std::expected<void, QueryError> Database::acquire_table_lock(
+    ActiveTransaction& transaction, common::TableId table_id,
+    transaction::LockMode mode) {
+    auto acquired = transaction_manager_->acquire_table_lock(
+        transaction.handle, table_id, mode);
+    if (!acquired) {
+        const bool conflict = std::holds_alternative<transaction::LockError>(
+            acquired.error()) &&
+            std::get<transaction::LockError>(acquired.error()).code ==
+                transaction::LockErrorCode::lock_conflict;
+        return std::unexpected(QueryError{TransactionExecutionError{
+            conflict ? TransactionExecutionErrorCode::lock_conflict
+                     : TransactionExecutionErrorCode::transaction_state_error}});
+    }
+    return {};
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
-    const sql::SelectStatement& statement) {
+    const sql::SelectStatement& statement, ActiveTransaction& transaction) {
     auto bound = binder::bind_select_statement(statement, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
@@ -124,6 +263,13 @@ std::expected<QueryResult, QueryError> Database::execute(
     }
     for (const auto& join : bound->joins) {
         table_ids.push_back(join.table_id);
+    }
+    for (const auto table_id : table_ids) {
+        auto locked = acquire_table_lock(
+            transaction, table_id, transaction::LockMode::shared);
+        if (!locked) {
+            return std::unexpected(locked.error());
+        }
     }
 
     std::vector<execution::TableInput> table_inputs;
@@ -165,10 +311,24 @@ std::expected<QueryResult, QueryError> Database::execute(
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
-    const sql::ExplainStatement& statement) {
+    const sql::ExplainStatement& statement, ActiveTransaction& transaction) {
     auto bound = binder::bind_select_statement(statement.select, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
+    }
+    if (bound->table_id.is_valid()) {
+        auto locked = acquire_table_lock(
+            transaction, bound->table_id, transaction::LockMode::shared);
+        if (!locked) {
+            return std::unexpected(locked.error());
+        }
+    }
+    for (const auto& join : bound->joins) {
+        auto locked = acquire_table_lock(
+            transaction, join.table_id, transaction::LockMode::shared);
+        if (!locked) {
+            return std::unexpected(locked.error());
+        }
     }
 
     auto logical_plan = planner::plan_select(std::move(*bound));
@@ -187,7 +347,11 @@ std::expected<QueryResult, QueryError> Database::execute(
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
-    const sql::CreateTableStatement& statement) {
+    const sql::CreateTableStatement& statement, ActiveTransaction& transaction) {
+    if (transaction.explicit_transaction) {
+        return std::unexpected(QueryError{TransactionExecutionError{
+            TransactionExecutionErrorCode::ddl_not_supported}});
+    }
     auto bound = binder::bind_create_table_statement(statement);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
@@ -225,10 +389,15 @@ std::expected<QueryResult, QueryError> Database::execute(
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
-    const sql::InsertStatement& statement) {
+    const sql::InsertStatement& statement, ActiveTransaction& transaction) {
     auto bound = binder::bind_insert_statement(statement, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
+    }
+    auto locked = acquire_table_lock(
+        transaction, bound->table_id, transaction::LockMode::exclusive);
+    if (!locked) {
+        return std::unexpected(locked.error());
     }
 
     storage::Row row{std::move(bound->values)};
@@ -237,6 +406,7 @@ std::expected<QueryResult, QueryError> Database::execute(
         if (!inserted) {
             throw std::logic_error{"catalog and heap table state diverged"};
         }
+        transaction.undo.record_insert(bound->table_id, *inserted);
     } else {
         auto inserted = std::get<storage::StorageManager>(storage_).insert(
             bound->table_id, row);
@@ -244,6 +414,7 @@ std::expected<QueryResult, QueryError> Database::execute(
             return std::unexpected(QueryError{StorageError{
                 std::move(inserted.error())}});
         }
+        transaction.undo.record_insert(bound->table_id, *inserted);
     }
     QueryResult result;
     result.rows_affected = 1;
@@ -251,10 +422,15 @@ std::expected<QueryResult, QueryError> Database::execute(
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
-    const sql::DeleteStatement& statement) {
+    const sql::DeleteStatement& statement, ActiveTransaction& transaction) {
     auto bound = binder::bind_delete_statement(statement, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
+    }
+    auto locked = acquire_table_lock(
+        transaction, bound->table_id, transaction::LockMode::exclusive);
+    if (!locked) {
+        return std::unexpected(locked.error());
     }
 
     QueryResult result;
@@ -273,6 +449,8 @@ std::expected<QueryResult, QueryError> Database::execute(
             if (!erased) {
                 throw std::logic_error{"heap row state diverged during deletion"};
             }
+            transaction.undo.record_delete(
+                bound->table_id, record.row_id, record.row);
             ++result.rows_affected;
         }
         return result;
@@ -294,16 +472,23 @@ std::expected<QueryResult, QueryError> Database::execute(
             return std::unexpected(
                 QueryError{StorageError{std::move(erased.error())}});
         }
+        transaction.undo.record_delete(
+            bound->table_id, record.record_id, record.row);
         ++result.rows_affected;
     }
     return result;
 }
 
 std::expected<QueryResult, QueryError> Database::execute(
-    const sql::UpdateStatement& statement) {
+    const sql::UpdateStatement& statement, ActiveTransaction& transaction) {
     auto bound = binder::bind_update_statement(statement, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
+    }
+    auto locked = acquire_table_lock(
+        transaction, bound->table_id, transaction::LockMode::exclusive);
+    if (!locked) {
+        return std::unexpected(locked.error());
     }
 
     QueryResult result;
@@ -318,6 +503,7 @@ std::expected<QueryResult, QueryError> Database::execute(
                 !matches_where_clause(record.row.values, *bound->where)) {
                 continue;
             }
+            storage::Row before = record.row;
             apply_assignments(record.row, bound->assignments);
             auto updated = heap->update(bound->table_id, record.row_id,
                                         std::move(record.row));
@@ -325,6 +511,8 @@ std::expected<QueryResult, QueryError> Database::execute(
                 throw std::logic_error{
                     "heap row state diverged during update"};
             }
+            transaction.undo.record_update(
+                bound->table_id, record.row_id, std::move(before));
             ++result.rows_affected;
         }
         return result;
@@ -341,6 +529,7 @@ std::expected<QueryResult, QueryError> Database::execute(
             !matches_where_clause(record.row.values, *bound->where)) {
             continue;
         }
+        storage::Row before = record.row;
         apply_assignments(record.row, bound->assignments);
         auto updated = storage.update(bound->table_id, record.record_id,
                                       record.row);
@@ -348,6 +537,8 @@ std::expected<QueryResult, QueryError> Database::execute(
             return std::unexpected(
                 QueryError{StorageError{std::move(updated.error())}});
         }
+        transaction.undo.record_update(
+            bound->table_id, record.record_id, std::move(before));
         ++result.rows_affected;
     }
     return result;
