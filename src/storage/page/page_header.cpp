@@ -13,7 +13,9 @@ inline constexpr std::size_t lsn_offset = 16;
 inline constexpr std::size_t reserved_offset = 28;
 
 bool is_known_page_type(PageType type) noexcept {
-    return type == PageType::database_header || type == PageType::heap;
+    return type == PageType::database_header || type == PageType::heap ||
+           type == PageType::index_leaf ||
+           type == PageType::index_internal;
 }
 
 bool page_id_matches_type(PageType type, common::PageId page_id) noexcept {
