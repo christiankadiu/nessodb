@@ -189,6 +189,12 @@ Token Lexer::scan_identifier(SourceLocation start) noexcept {
         token.type = TokenType::delete_keyword;
     } else if (equals_case_insensitive(token.lexeme, "update")) {
         token.type = TokenType::update;
+    } else if (equals_case_insensitive(token.lexeme, "begin")) {
+        token.type = TokenType::begin;
+    } else if (equals_case_insensitive(token.lexeme, "commit")) {
+        token.type = TokenType::commit;
+    } else if (equals_case_insensitive(token.lexeme, "rollback")) {
+        token.type = TokenType::rollback;
     } else if (equals_case_insensitive(token.lexeme, "set")) {
         token.type = TokenType::set;
     } else if (equals_case_insensitive(token.lexeme, "into")) {

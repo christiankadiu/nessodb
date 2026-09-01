@@ -41,8 +41,22 @@ struct StorageError {
     storage::StorageManagerError cause;
 };
 
+enum class TransactionExecutionErrorCode {
+    transaction_already_active,
+    no_active_transaction,
+    lock_conflict,
+    rollback_failed,
+    transaction_state_error,
+    ddl_not_supported,
+};
+
+struct TransactionExecutionError {
+    TransactionExecutionErrorCode code;
+};
+
 using QueryError =
-    std::variant<sql::ParseError, binder::BindError, ExecutionError, StorageError>;
+    std::variant<sql::ParseError, binder::BindError, ExecutionError, StorageError,
+                 TransactionExecutionError>;
 
 [[nodiscard]] std::expected<QueryResult, QueryError> execute_query(std::string_view source);
 

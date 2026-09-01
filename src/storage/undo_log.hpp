@@ -14,6 +14,7 @@
 namespace minidb::storage {
 
 enum class UndoErrorCode {
+    invalid_undo_position,
     row_identifier_mismatch,
 };
 
@@ -43,6 +44,10 @@ public:
         InMemoryHeap& heap);
     [[nodiscard]] std::expected<void, UndoError> rollback(
         StorageManager& storage);
+    [[nodiscard]] std::expected<void, UndoError> rollback_to(
+        std::size_t position, InMemoryHeap& heap);
+    [[nodiscard]] std::expected<void, UndoError> rollback_to(
+        std::size_t position, StorageManager& storage);
     void clear() noexcept;
 
     [[nodiscard]] bool empty() const noexcept;

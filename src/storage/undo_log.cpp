@@ -52,7 +52,20 @@ void UndoLog::record_update(common::TableId table_id, RecordId record_id,
 }
 
 std::expected<void, UndoError> UndoLog::rollback(InMemoryHeap& heap) {
-    while (!records_.empty()) {
+    return rollback_to(0, heap);
+}
+
+std::expected<void, UndoError> UndoLog::rollback(StorageManager& storage) {
+    return rollback_to(0, storage);
+}
+
+std::expected<void, UndoError> UndoLog::rollback_to(
+    std::size_t position, InMemoryHeap& heap) {
+    if (position > records_.size()) {
+        return std::unexpected(
+            UndoError{UndoErrorCode::invalid_undo_position});
+    }
+    while (records_.size() > position) {
         const auto applied = std::visit(
             [&heap](const auto& record) -> std::expected<void, UndoError> {
                 using Record = std::decay_t<decltype(record)>;
@@ -90,8 +103,13 @@ std::expected<void, UndoError> UndoLog::rollback(InMemoryHeap& heap) {
     return {};
 }
 
-std::expected<void, UndoError> UndoLog::rollback(StorageManager& storage) {
-    while (!records_.empty()) {
+std::expected<void, UndoError> UndoLog::rollback_to(
+    std::size_t position, StorageManager& storage) {
+    if (position > records_.size()) {
+        return std::unexpected(
+            UndoError{UndoErrorCode::invalid_undo_position});
+    }
+    while (records_.size() > position) {
         const auto applied = std::visit(
             [&storage](const auto& record) -> std::expected<void, UndoError> {
                 using Record = std::decay_t<decltype(record)>;

@@ -98,6 +98,27 @@ std::expected<Statement, ParseError> Parser::parse_statement() {
         }
         return Statement{std::move(*statement)};
     }
+    if (token->type == TokenType::begin) {
+        auto statement = parse_begin_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{*statement};
+    }
+    if (token->type == TokenType::commit) {
+        auto statement = parse_commit_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{*statement};
+    }
+    if (token->type == TokenType::rollback) {
+        auto statement = parse_rollback_statement();
+        if (!statement) {
+            return std::unexpected(statement.error());
+        }
+        return Statement{*statement};
+    }
     return std::unexpected(ParseError{ParseErrorCode::expected_statement, token->location});
 }
 
@@ -1059,6 +1080,54 @@ std::expected<UpdateStatement, ParseError> Parser::parse_update_statement() {
     return statement;
 }
 
+std::expected<BeginStatement, ParseError> Parser::parse_begin_statement() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::begin) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_begin, token->location});
+    }
+    auto end = parse_statement_end();
+    if (!end) {
+        return std::unexpected(end.error());
+    }
+    return BeginStatement{};
+}
+
+std::expected<CommitStatement, ParseError> Parser::parse_commit_statement() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::commit) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_commit, token->location});
+    }
+    auto end = parse_statement_end();
+    if (!end) {
+        return std::unexpected(end.error());
+    }
+    return CommitStatement{};
+}
+
+std::expected<RollbackStatement, ParseError> Parser::parse_rollback_statement() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type != TokenType::rollback) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_rollback, token->location});
+    }
+    auto end = parse_statement_end();
+    if (!end) {
+        return std::unexpected(end.error());
+    }
+    return RollbackStatement{};
+}
+
 std::expected<CreateTableStatement, ParseError> Parser::parse_create_table_statement() {
     auto token = next_token();
     if (!token) {
@@ -1238,6 +1307,24 @@ std::expected<InsertStatement, ParseError> Parser::parse_insert_statement() {
             ParseError{ParseErrorCode::expected_end_of_input, token->location});
     }
     return statement;
+}
+
+std::expected<void, ParseError> Parser::parse_statement_end() {
+    auto token = next_token();
+    if (!token) {
+        return std::unexpected(token.error());
+    }
+    if (token->type == TokenType::semicolon) {
+        token = next_token();
+        if (!token) {
+            return std::unexpected(token.error());
+        }
+    }
+    if (token->type != TokenType::end_of_input) {
+        return std::unexpected(
+            ParseError{ParseErrorCode::expected_end_of_input, token->location});
+    }
+    return {};
 }
 
 std::expected<Token, ParseError> Parser::next_token() {

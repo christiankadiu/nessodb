@@ -234,8 +234,13 @@ struct UpdateStatement {
     std::optional<Expression> where;
 };
 
+struct BeginStatement {};
+struct CommitStatement {};
+struct RollbackStatement {};
+
 using Statement =
     std::variant<SelectStatement, ExplainStatement, CreateTableStatement,
-                 InsertStatement, DeleteStatement, UpdateStatement>;
+                 InsertStatement, DeleteStatement, UpdateStatement,
+                 BeginStatement, CommitStatement, RollbackStatement>;
 
 }  // namespace minidb::sql
