@@ -13,6 +13,7 @@ add_library(minidb
     src/catalog/catalog.cpp
     src/engine/database.cpp
     src/engine/query.cpp
+    src/index/btree_page.cpp
     src/index/key_codec.cpp
     src/execution/aggregate_state.cpp
     src/execution/global_aggregate_operator.cpp

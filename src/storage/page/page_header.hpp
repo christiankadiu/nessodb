@@ -17,6 +17,8 @@ inline constexpr std::size_t page_checksum_offset = 24;
 enum class PageType : std::uint16_t {
     database_header = 1,
     heap = 2,
+    index_leaf = 3,
+    index_internal = 4,
 };
 
 struct PageHeader {
