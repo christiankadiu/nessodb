@@ -32,6 +32,9 @@ enum class ParseErrorCode {
     expected_insert,
     expected_delete,
     expected_update,
+    expected_begin,
+    expected_commit,
+    expected_rollback,
     expected_set,
     expected_equal,
     expected_comma_where_or_end,
@@ -58,6 +61,9 @@ public:
     [[nodiscard]] std::expected<InsertStatement, ParseError> parse_insert_statement();
     [[nodiscard]] std::expected<DeleteStatement, ParseError> parse_delete_statement();
     [[nodiscard]] std::expected<UpdateStatement, ParseError> parse_update_statement();
+    [[nodiscard]] std::expected<BeginStatement, ParseError> parse_begin_statement();
+    [[nodiscard]] std::expected<CommitStatement, ParseError> parse_commit_statement();
+    [[nodiscard]] std::expected<RollbackStatement, ParseError> parse_rollback_statement();
 
 private:
     [[nodiscard]] std::expected<Token, ParseError> next_token();
@@ -95,6 +101,7 @@ private:
         std::vector<OrderByTerm>* order_by = nullptr,
         std::optional<LimitClause>* limit = nullptr,
         std::optional<OffsetClause>* offset = nullptr);
+    [[nodiscard]] std::expected<void, ParseError> parse_statement_end();
 
     Lexer lexer_;
     std::optional<Token> lookahead_;

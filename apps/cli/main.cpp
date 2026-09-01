@@ -12,12 +12,38 @@
 
 namespace {
 
+std::string_view transaction_error_message(
+    minidb::engine::TransactionExecutionErrorCode code) noexcept {
+    using Code = minidb::engine::TransactionExecutionErrorCode;
+    switch (code) {
+        case Code::transaction_already_active:
+            return "transaction already active";
+        case Code::no_active_transaction:
+            return "no active transaction";
+        case Code::lock_conflict:
+            return "lock conflict";
+        case Code::rollback_failed:
+            return "rollback failed";
+        case Code::transaction_state_error:
+            return "invalid transaction state";
+        case Code::ddl_not_supported:
+            return "DDL is not supported inside an explicit transaction";
+    }
+    return "unknown transaction error";
+}
+
 void print_error(const minidb::engine::QueryError& error) {
     std::visit(
         [](const auto& detail) {
+            using Detail = std::remove_cvref_t<decltype(detail)>;
             if constexpr (requires { detail.location; }) {
                 std::cerr << "Query error at " << detail.location.line << ':'
                           << detail.location.column << '\n';
+            } else if constexpr (std::is_same_v<
+                                     Detail,
+                                     minidb::engine::TransactionExecutionError>) {
+                std::cerr << "Transaction error: "
+                          << transaction_error_message(detail.code) << '\n';
             } else {
                 std::cerr << "Storage error\n";
             }

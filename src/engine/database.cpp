@@ -11,6 +11,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -68,6 +69,14 @@ ExecutionError execution_error(execution::OperatorError error) noexcept {
         ExecutionErrorCode::memory_limit_exceeded, error.location};
 }
 
+std::expected<QueryResult, QueryError> transaction_control_result(
+    std::expected<void, QueryError> result) {
+    if (!result) {
+        return std::unexpected(std::move(result.error()));
+    }
+    return QueryResult{};
+}
+
 }  // namespace
 
 Database::Database(catalog::Catalog catalog, storage::StorageManager storage)
@@ -106,6 +115,16 @@ std::expected<QueryResult, QueryError> Database::execute(std::string_view source
         return std::unexpected(QueryError{parsed.error()});
     }
 
+    if (std::holds_alternative<sql::BeginStatement>(*parsed)) {
+        return transaction_control_result(begin_transaction());
+    }
+    if (std::holds_alternative<sql::CommitStatement>(*parsed)) {
+        return transaction_control_result(commit_transaction());
+    }
+    if (std::holds_alternative<sql::RollbackStatement>(*parsed)) {
+        return transaction_control_result(rollback_transaction());
+    }
+
     const bool autocommit = !active_transaction_;
     if (autocommit) {
         auto started = start_transaction(false);
@@ -118,8 +137,18 @@ std::expected<QueryResult, QueryError> Database::execute(std::string_view source
     std::expected<QueryResult, QueryError> result;
     try {
         result = std::visit(
-            [this](const auto& statement) {
-                return execute(statement, *active_transaction_);
+            [this](const auto& statement)
+                -> std::expected<QueryResult, QueryError> {
+                using Statement = std::remove_cvref_t<decltype(statement)>;
+                if constexpr (std::is_same_v<Statement, sql::BeginStatement> ||
+                              std::is_same_v<Statement, sql::CommitStatement> ||
+                              std::is_same_v<Statement,
+                                             sql::RollbackStatement>) {
+                    throw std::logic_error{
+                        "transaction control statement reached query execution"};
+                } else {
+                    return execute(statement, *active_transaction_);
+                }
             },
             *parsed);
     } catch (...) {
