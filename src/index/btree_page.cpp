@@ -106,8 +106,8 @@ std::expected<void, IndexPageError> validate_internal_entries(
             return std::unexpected(valid_key.error());
         }
         if (index != 0 &&
-            compare_encoded_keys(entries[index - 1].key, entry.key) !=
-                std::strong_ordering::less) {
+            compare_encoded_keys(entries[index - 1].key, entry.key) ==
+                std::strong_ordering::greater) {
             return std::unexpected(IndexPageError::entries_not_sorted);
         }
         if (entry.right_child == leftmost_child) {
