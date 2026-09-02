@@ -52,7 +52,7 @@ private:
     [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
         LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_child_leaf(
-        LeafPage leaf, common::PageId parent_page_id);
+        LeafPage leaf, std::span<const common::PageId> internal_path);
     [[nodiscard]] std::expected<void, BTreeError> split_internal_root(
         LeafPage leaf, std::vector<LeafEntry> right_entries,
         InternalPage root, std::size_t insertion_index);

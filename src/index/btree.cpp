@@ -405,7 +405,7 @@ std::expected<void, BTreeError> BTree::insert(
         return std::unexpected(BTreeError{encoded_leaf.error()});
     }
     if (parent_page_id) {
-        return split_child_leaf(std::move(leaf), *parent_page_id);
+        return split_child_leaf(std::move(leaf), location->internal_path);
     }
     return split_root_leaf(std::move(leaf));
 }
@@ -500,13 +500,17 @@ std::expected<void, BTreeError> BTree::split_root_leaf(LeafPage leaf) {
 }
 
 std::expected<void, BTreeError> BTree::split_child_leaf(
-    LeafPage leaf, common::PageId parent_page_id) {
-    if (leaf.page_id == root_page_id_ ||
-        leaf.parent_page_id != parent_page_id ||
-        parent_page_id != root_page_id_) {
+    LeafPage leaf, std::span<const common::PageId> internal_path) {
+    if (leaf.page_id == root_page_id_ || internal_path.empty() ||
+        leaf.parent_page_id != internal_path.back()) {
         return std::unexpected(
             BTreeError{BTreeErrorCode::invalid_tree_structure});
     }
+    const common::PageId parent_page_id = internal_path.back();
+    const std::optional<common::PageId> grandparent_page_id =
+        internal_path.size() == 1
+            ? std::nullopt
+            : std::optional{internal_path[internal_path.size() - 2]};
     const auto split = choose_leaf_split(leaf.entries);
     if (!split) {
         return std::unexpected(BTreeError{IndexPageError::page_full});
@@ -531,7 +535,8 @@ std::expected<void, BTreeError> BTree::split_child_leaf(
         if (!decoded) {
             return std::unexpected(BTreeError{decoded.error()});
         }
-        if (decoded->parent_page_id || decoded->level != 1) {
+        if (decoded->parent_page_id != grandparent_page_id ||
+            decoded->level != 1) {
             return std::unexpected(
                 BTreeError{BTreeErrorCode::invalid_tree_structure});
         }
@@ -565,6 +570,10 @@ std::expected<void, BTreeError> BTree::split_child_leaf(
     }
     const auto parent_size = internal_entries_size(parent.entries, separator);
     if (!parent_size || *parent_size > storage::page_size) {
+        if (parent.page_id != root_page_id_) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::unsupported_tree_height});
+        }
         return split_internal_root(std::move(leaf),
                                    std::move(right_entries),
                                    std::move(parent), insertion_index);
