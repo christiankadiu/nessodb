@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <expected>
+#include <optional>
 #include <span>
 #include <variant>
 #include <vector>
@@ -18,6 +19,8 @@ enum class BTreeErrorCode {
     invalid_record_id,
     duplicate_entry,
     unsupported_tree_height,
+    invalid_tree_structure,
+    leaf_chain_cycle,
 };
 
 using BTreeError = std::variant<storage::BufferPoolError, IndexPageError,
@@ -37,8 +40,17 @@ public:
         std::span<const std::byte> key, storage::RecordId record_id);
 
 private:
+    struct LeafLocation {
+        common::PageId page_id;
+        std::optional<common::PageId> parent_page_id;
+    };
+
     BTree(storage::BufferPool& buffer_pool,
           common::PageId root_page_id) noexcept;
+    [[nodiscard]] std::expected<LeafLocation, BTreeError> locate_leaf(
+        std::span<const std::byte> key, bool right_bias) const;
+    [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
+        LeafPage leaf);
 
     storage::BufferPool& buffer_pool_;
     common::PageId root_page_id_;
