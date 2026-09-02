@@ -53,6 +53,9 @@ private:
         LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_child_leaf(
         LeafPage leaf, common::PageId parent_page_id);
+    [[nodiscard]] std::expected<void, BTreeError> split_internal_root(
+        LeafPage leaf, std::vector<LeafEntry> right_entries,
+        InternalPage root, std::size_t insertion_index);
 
     storage::BufferPool& buffer_pool_;
     common::PageId root_page_id_;
