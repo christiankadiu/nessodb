@@ -51,6 +51,8 @@ private:
         std::span<const std::byte> key, bool right_bias) const;
     [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
         LeafPage leaf);
+    [[nodiscard]] std::expected<void, BTreeError> split_child_leaf(
+        LeafPage leaf, common::PageId parent_page_id);
 
     storage::BufferPool& buffer_pool_;
     common::PageId root_page_id_;
