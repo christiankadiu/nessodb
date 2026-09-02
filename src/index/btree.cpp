@@ -215,7 +215,7 @@ std::expected<BTree::LeafLocation, BTreeError> BTree::locate_leaf(
     std::span<const std::byte> key, bool right_bias) const {
     std::unordered_set<std::uint64_t> visited_pages;
     common::PageId current_page_id = root_page_id_;
-    std::optional<common::PageId> parent_page_id;
+    std::vector<common::PageId> internal_path;
     std::optional<std::uint16_t> expected_level;
     while (true) {
         if (!visited_pages.insert(current_page_id.value).second) {
@@ -237,18 +237,26 @@ std::expected<BTree::LeafLocation, BTreeError> BTree::locate_leaf(
             if (!leaf) {
                 return std::unexpected(BTreeError{leaf.error()});
             }
+            const std::optional<common::PageId> parent_page_id =
+                internal_path.empty()
+                    ? std::nullopt
+                    : std::optional{internal_path.back()};
             if (leaf->parent_page_id != parent_page_id ||
                 (expected_level && *expected_level != 0)) {
                 return std::unexpected(
                     BTreeError{BTreeErrorCode::invalid_tree_structure});
             }
-            return LeafLocation{current_page_id, parent_page_id};
+            return LeafLocation{current_page_id, std::move(internal_path)};
         }
 
         auto internal = decode_internal_page(**page);
         if (!internal) {
             return std::unexpected(BTreeError{internal.error()});
         }
+        const std::optional<common::PageId> parent_page_id =
+            internal_path.empty()
+                ? std::nullopt
+                : std::optional{internal_path.back()};
         if (internal->parent_page_id != parent_page_id ||
             (expected_level && internal->level != *expected_level)) {
             return std::unexpected(
@@ -264,7 +272,7 @@ std::expected<BTree::LeafLocation, BTreeError> BTree::locate_leaf(
             }
             child = entry.right_child;
         }
-        parent_page_id = current_page_id;
+        internal_path.push_back(current_page_id);
         expected_level = static_cast<std::uint16_t>(internal->level - 1);
         current_page_id = child;
     }
@@ -285,6 +293,10 @@ std::expected<std::vector<storage::RecordId>, BTreeError> BTree::find(
     std::vector<storage::RecordId> matches;
     std::unordered_set<std::uint64_t> visited_pages;
     common::PageId current_page_id = location->page_id;
+    const std::optional<common::PageId> parent_page_id =
+        location->internal_path.empty()
+            ? std::nullopt
+            : std::optional{location->internal_path.back()};
     bool first_leaf = true;
     while (true) {
         if (!visited_pages.insert(current_page_id.value).second) {
@@ -300,11 +312,9 @@ std::expected<std::vector<storage::RecordId>, BTreeError> BTree::find(
         if (!leaf) {
             return std::unexpected(BTreeError{leaf.error()});
         }
-        if ((first_leaf &&
-             leaf->parent_page_id != location->parent_page_id) ||
-            (!first_leaf && location->parent_page_id &&
-             !leaf->parent_page_id) ||
-            (!first_leaf && !location->parent_page_id)) {
+        if ((first_leaf && leaf->parent_page_id != parent_page_id) ||
+            (!first_leaf && parent_page_id && !leaf->parent_page_id) ||
+            (!first_leaf && !parent_page_id)) {
             return std::unexpected(
                 BTreeError{BTreeErrorCode::invalid_tree_structure});
         }
@@ -351,6 +361,10 @@ std::expected<void, BTreeError> BTree::insert(
         return std::unexpected(location.error());
     }
 
+    const std::optional<common::PageId> parent_page_id =
+        location->internal_path.empty()
+            ? std::nullopt
+            : std::optional{location->internal_path.back()};
     LeafPage leaf;
     {
         auto page = buffer_pool_.fetch_index_page(location->page_id);
@@ -361,7 +375,7 @@ std::expected<void, BTreeError> BTree::insert(
         if (!decoded) {
             return std::unexpected(BTreeError{decoded.error()});
         }
-        if (decoded->parent_page_id != location->parent_page_id) {
+        if (decoded->parent_page_id != parent_page_id) {
             return std::unexpected(
                 BTreeError{BTreeErrorCode::invalid_tree_structure});
         }
@@ -390,9 +404,8 @@ std::expected<void, BTreeError> BTree::insert(
     if (encoded_leaf.error() != IndexPageError::page_full) {
         return std::unexpected(BTreeError{encoded_leaf.error()});
     }
-    if (location->parent_page_id) {
-        return split_child_leaf(std::move(leaf),
-                                *location->parent_page_id);
+    if (parent_page_id) {
+        return split_child_leaf(std::move(leaf), *parent_page_id);
     }
     return split_root_leaf(std::move(leaf));
 }

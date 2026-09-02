@@ -42,7 +42,7 @@ public:
 private:
     struct LeafLocation {
         common::PageId page_id;
-        std::optional<common::PageId> parent_page_id;
+        std::vector<common::PageId> internal_path;
     };
 
     BTree(storage::BufferPool& buffer_pool,
