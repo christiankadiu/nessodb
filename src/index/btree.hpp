@@ -53,6 +53,10 @@ private:
         LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_child_leaf(
         LeafPage leaf, std::span<const common::PageId> internal_path);
+    [[nodiscard]] std::expected<void, BTreeError> split_non_root_internal(
+        LeafPage leaf, std::vector<LeafEntry> right_entries,
+        InternalPage parent, std::size_t insertion_index,
+        std::span<const common::PageId> internal_path);
     [[nodiscard]] std::expected<void, BTreeError> split_internal_root(
         LeafPage leaf, std::vector<LeafEntry> right_entries,
         InternalPage root, std::size_t insertion_index);
