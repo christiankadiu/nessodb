@@ -745,8 +745,10 @@ std::expected<void, BTreeError> BTree::split_non_root_internal(
     }
     const auto root_size = internal_entries_size(root.entries, promoted.key);
     if (!root_size || *root_size > storage::page_size) {
-        return std::unexpected(
-            BTreeError{BTreeErrorCode::unsupported_tree_height});
+        return split_level_two_root(
+            std::move(leaf), std::move(right_entries), right_leaf_page_id,
+            std::move(parent), std::move(right_internal), std::move(root),
+            root_insertion_index, promoted.key);
     }
     root.entries.insert(
         root.entries.begin() +
@@ -873,6 +875,227 @@ std::expected<void, BTreeError> BTree::split_non_root_internal(
     if (!wrote_root) {
         return std::unexpected(wrote_root.error());
     }
+    return {};
+}
+
+std::expected<void, BTreeError> BTree::split_level_two_root(
+    LeafPage leaf, std::vector<LeafEntry> right_entries,
+    common::PageId right_leaf_page_id, InternalPage left_internal,
+    InternalPage right_internal, InternalPage root,
+    std::size_t root_insertion_index, EncodedKey separator) {
+    if (root.page_id != root_page_id_ || root.parent_page_id ||
+        root.level != 2 || left_internal.level != 1 ||
+        right_internal.level != 1 ||
+        left_internal.parent_page_id != root.page_id ||
+        right_internal.parent_page_id != root.page_id ||
+        leaf.parent_page_id != left_internal.page_id ||
+        right_entries.empty() ||
+        right_entries.front().key != separator ||
+        root_insertion_index > root.entries.size()) {
+        return std::unexpected(
+            BTreeError{BTreeErrorCode::invalid_tree_structure});
+    }
+
+    root.entries.insert(
+        root.entries.begin() +
+            static_cast<std::ptrdiff_t>(root_insertion_index),
+        InternalEntry{separator, right_internal.page_id});
+    const auto root_split = choose_internal_split(root.entries);
+    if (!root_split) {
+        return std::unexpected(BTreeError{IndexPageError::page_full});
+    }
+    const InternalEntry promoted = root.entries[*root_split];
+
+    common::PageId right_root_page_id;
+    {
+        auto right_root = buffer_pool_.allocate_index_internal_page(
+            root.level, promoted.right_child);
+        if (!right_root) {
+            return std::unexpected(BTreeError{right_root.error()});
+        }
+        right_root_page_id = right_root->page_id;
+    }
+    common::PageId new_root_page_id;
+    {
+        auto new_root = buffer_pool_.allocate_index_internal_page(
+            static_cast<std::uint16_t>(root.level + 1), root.page_id);
+        if (!new_root) {
+            return std::unexpected(BTreeError{new_root.error()});
+        }
+        new_root_page_id = new_root->page_id;
+    }
+
+    std::vector<InternalEntry> right_root_entries(
+        std::make_move_iterator(
+            root.entries.begin() +
+            static_cast<std::ptrdiff_t>(*root_split + 1)),
+        std::make_move_iterator(root.entries.end()));
+    root.entries.erase(
+        root.entries.begin() + static_cast<std::ptrdiff_t>(*root_split),
+        root.entries.end());
+    root.parent_page_id = new_root_page_id;
+    InternalPage right_root{
+        right_root_page_id,
+        new_root_page_id,
+        root.level,
+        promoted.right_child,
+        std::move(right_root_entries),
+    };
+    InternalPage new_root{
+        new_root_page_id,
+        std::nullopt,
+        static_cast<std::uint16_t>(root.level + 1),
+        root.page_id,
+        {{promoted.key, right_root_page_id}},
+    };
+
+    std::unordered_set<std::uint64_t> right_root_children;
+    right_root_children.insert(right_root.leftmost_child.value);
+    for (const auto& entry : right_root.entries) {
+        right_root_children.insert(entry.right_child.value);
+    }
+    const auto root_child_parent = [&right_root_children,
+                                    right_root_page_id,
+                                    &root](common::PageId child) {
+        return right_root_children.contains(child.value)
+                   ? right_root_page_id
+                   : root.page_id;
+    };
+    left_internal.parent_page_id =
+        root_child_parent(left_internal.page_id);
+    right_internal.parent_page_id =
+        root_child_parent(right_internal.page_id);
+
+    std::vector<InternalPage> reparented_internal_pages;
+    for (const auto child_value : right_root_children) {
+        const common::PageId child_id{child_value};
+        if (child_id == left_internal.page_id ||
+            child_id == right_internal.page_id) {
+            continue;
+        }
+        auto child_page = buffer_pool_.fetch_index_page(child_id);
+        if (!child_page) {
+            return std::unexpected(BTreeError{child_page.error()});
+        }
+        auto child = decode_internal_page(**child_page);
+        if (!child) {
+            return std::unexpected(BTreeError{child.error()});
+        }
+        if (child->parent_page_id != root.page_id || child->level != 1) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        child->parent_page_id = right_root_page_id;
+        reparented_internal_pages.push_back(std::move(*child));
+    }
+
+    std::unordered_set<std::uint64_t> right_internal_children;
+    right_internal_children.insert(right_internal.leftmost_child.value);
+    for (const auto& entry : right_internal.entries) {
+        right_internal_children.insert(entry.right_child.value);
+    }
+    const auto leaf_parent = [&right_internal_children,
+                              &left_internal,
+                              &right_internal](common::PageId child) {
+        return right_internal_children.contains(child.value)
+                   ? right_internal.page_id
+                   : left_internal.page_id;
+    };
+
+    const auto old_next_page_id = leaf.next_page_id;
+    leaf.parent_page_id = leaf_parent(leaf.page_id);
+    leaf.next_page_id = right_leaf_page_id;
+    LeafPage right_leaf{
+        right_leaf_page_id,
+        leaf_parent(right_leaf_page_id),
+        old_next_page_id,
+        std::move(right_entries),
+    };
+
+    std::vector<LeafPage> reparented_leaf_pages;
+    for (const auto child_value : right_internal_children) {
+        const common::PageId child_id{child_value};
+        if (child_id == leaf.page_id || child_id == right_leaf_page_id) {
+            continue;
+        }
+        auto child_page = buffer_pool_.fetch_index_page(child_id);
+        if (!child_page) {
+            return std::unexpected(BTreeError{child_page.error()});
+        }
+        auto child = decode_leaf_page(**child_page);
+        if (!child) {
+            return std::unexpected(BTreeError{child.error()});
+        }
+        if (child->parent_page_id != left_internal.page_id) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        child->parent_page_id = right_internal.page_id;
+        reparented_leaf_pages.push_back(std::move(*child));
+    }
+
+    std::vector<std::pair<common::PageId, storage::PageBuffer>> pages;
+    const auto encode_leaf = [&pages](const LeafPage& page)
+        -> std::expected<void, BTreeError> {
+        storage::PageBuffer buffer{};
+        auto encoded = encode_leaf_page(buffer, page);
+        if (!encoded) {
+            return std::unexpected(BTreeError{encoded.error()});
+        }
+        pages.emplace_back(page.page_id, std::move(buffer));
+        return {};
+    };
+    const auto encode_internal = [&pages](const InternalPage& page)
+        -> std::expected<void, BTreeError> {
+        storage::PageBuffer buffer{};
+        auto encoded = encode_internal_page(buffer, page);
+        if (!encoded) {
+            return std::unexpected(BTreeError{encoded.error()});
+        }
+        pages.emplace_back(page.page_id, std::move(buffer));
+        return {};
+    };
+
+    if (auto encoded = encode_leaf(leaf); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+    if (auto encoded = encode_leaf(right_leaf); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+    for (const auto& page : reparented_leaf_pages) {
+        if (auto encoded = encode_leaf(page); !encoded) {
+            return std::unexpected(encoded.error());
+        }
+    }
+    if (auto encoded = encode_internal(left_internal); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+    if (auto encoded = encode_internal(right_internal); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+    for (const auto& page : reparented_internal_pages) {
+        if (auto encoded = encode_internal(page); !encoded) {
+            return std::unexpected(encoded.error());
+        }
+    }
+    if (auto encoded = encode_internal(root); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+    if (auto encoded = encode_internal(right_root); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+    if (auto encoded = encode_internal(new_root); !encoded) {
+        return std::unexpected(encoded.error());
+    }
+
+    for (auto& [page_id, page] : pages) {
+        auto writable = buffer_pool_.fetch_index_page_for_write(page_id);
+        if (!writable) {
+            return std::unexpected(BTreeError{writable.error()});
+        }
+        **writable = std::move(page);
+    }
+    root_page_id_ = new_root_page_id;
     return {};
 }
 
