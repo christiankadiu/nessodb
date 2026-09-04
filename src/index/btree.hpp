@@ -57,11 +57,12 @@ private:
         LeafPage leaf, std::vector<LeafEntry> right_entries,
         InternalPage parent, std::size_t insertion_index,
         std::span<const common::PageId> internal_path);
-    [[nodiscard]] std::expected<void, BTreeError> split_level_two_root(
+    [[nodiscard]] std::expected<void, BTreeError> split_level_two_internal(
         LeafPage leaf, std::vector<LeafEntry> right_entries,
         common::PageId right_leaf_page_id, InternalPage left_internal,
         InternalPage right_internal, InternalPage root,
-        std::size_t root_insertion_index, EncodedKey separator);
+        std::size_t root_insertion_index, EncodedKey separator,
+        std::span<const common::PageId> internal_path);
     [[nodiscard]] std::expected<void, BTreeError> split_internal_root(
         LeafPage leaf, std::vector<LeafEntry> right_entries,
         InternalPage root, std::size_t insertion_index);
