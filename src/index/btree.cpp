@@ -154,6 +154,42 @@ std::optional<std::size_t> choose_internal_split(
     return best_split;
 }
 
+using PageUpdate = std::pair<common::PageId, storage::PageBuffer>;
+
+std::expected<void, BTreeError> add_page_update(
+    std::vector<PageUpdate>& updates, const LeafPage& page) {
+    storage::PageBuffer buffer{};
+    auto encoded = encode_leaf_page(buffer, page);
+    if (!encoded) {
+        return std::unexpected(BTreeError{encoded.error()});
+    }
+    updates.emplace_back(page.page_id, std::move(buffer));
+    return {};
+}
+
+std::expected<void, BTreeError> add_page_update(
+    std::vector<PageUpdate>& updates, const InternalPage& page) {
+    storage::PageBuffer buffer{};
+    auto encoded = encode_internal_page(buffer, page);
+    if (!encoded) {
+        return std::unexpected(BTreeError{encoded.error()});
+    }
+    updates.emplace_back(page.page_id, std::move(buffer));
+    return {};
+}
+
+std::expected<void, BTreeError> write_page_updates(
+    storage::BufferPool& buffer_pool, std::vector<PageUpdate> updates) {
+    for (auto& [page_id, page] : updates) {
+        auto writable = buffer_pool.fetch_index_page_for_write(page_id);
+        if (!writable) {
+            return std::unexpected(BTreeError{writable.error()});
+        }
+        **writable = std::move(page);
+    }
+    return {};
+}
+
 }  // namespace
 
 std::expected<BTree, BTreeError> BTree::create(
@@ -457,43 +493,19 @@ std::expected<void, BTreeError> BTree::split_root_leaf(LeafPage leaf) {
         {{right_leaf.entries.front().key, right_page_id}},
     };
 
-    storage::PageBuffer left_buffer{};
-    storage::PageBuffer right_buffer{};
-    storage::PageBuffer root_buffer{};
-    auto encoded_left = encode_leaf_page(left_buffer, leaf);
-    auto encoded_right = encode_leaf_page(right_buffer, right_leaf);
-    auto encoded_root = encode_internal_page(root_buffer, new_root);
-    if (!encoded_left) {
-        return std::unexpected(BTreeError{encoded_left.error()});
+    std::vector<PageUpdate> updates;
+    if (auto added = add_page_update(updates, right_leaf); !added) {
+        return std::unexpected(added.error());
     }
-    if (!encoded_right) {
-        return std::unexpected(BTreeError{encoded_right.error()});
+    if (auto added = add_page_update(updates, leaf); !added) {
+        return std::unexpected(added.error());
     }
-    if (!encoded_root) {
-        return std::unexpected(BTreeError{encoded_root.error()});
+    if (auto added = add_page_update(updates, new_root); !added) {
+        return std::unexpected(added.error());
     }
-
-    const auto write_page = [this](common::PageId page_id,
-                                   storage::PageBuffer page)
-        -> std::expected<void, BTreeError> {
-        auto writable = buffer_pool_.fetch_index_page_for_write(page_id);
-        if (!writable) {
-            return std::unexpected(BTreeError{writable.error()});
-        }
-        **writable = std::move(page);
-        return {};
-    };
-    auto wrote_right = write_page(right_page_id, std::move(right_buffer));
-    if (!wrote_right) {
-        return std::unexpected(wrote_right.error());
-    }
-    auto wrote_left = write_page(leaf.page_id, std::move(left_buffer));
-    if (!wrote_left) {
-        return std::unexpected(wrote_left.error());
-    }
-    auto wrote_root = write_page(new_root_page_id, std::move(root_buffer));
-    if (!wrote_root) {
-        return std::unexpected(wrote_root.error());
+    auto written = write_page_updates(buffer_pool_, std::move(updates));
+    if (!written) {
+        return std::unexpected(written.error());
     }
     root_page_id_ = new_root_page_id;
     return {};
@@ -598,45 +610,17 @@ std::expected<void, BTreeError> BTree::split_child_leaf(
             static_cast<std::ptrdiff_t>(insertion_index),
         InternalEntry{separator, right_page_id});
 
-    storage::PageBuffer left_buffer{};
-    storage::PageBuffer right_buffer{};
-    storage::PageBuffer parent_buffer{};
-    auto encoded_left = encode_leaf_page(left_buffer, leaf);
-    auto encoded_right = encode_leaf_page(right_buffer, right_leaf);
-    auto encoded_parent = encode_internal_page(parent_buffer, parent);
-    if (!encoded_left) {
-        return std::unexpected(BTreeError{encoded_left.error()});
+    std::vector<PageUpdate> updates;
+    if (auto added = add_page_update(updates, right_leaf); !added) {
+        return std::unexpected(added.error());
     }
-    if (!encoded_right) {
-        return std::unexpected(BTreeError{encoded_right.error()});
+    if (auto added = add_page_update(updates, leaf); !added) {
+        return std::unexpected(added.error());
     }
-    if (!encoded_parent) {
-        return std::unexpected(BTreeError{encoded_parent.error()});
+    if (auto added = add_page_update(updates, parent); !added) {
+        return std::unexpected(added.error());
     }
-
-    const auto write_page = [this](common::PageId page_id,
-                                   storage::PageBuffer page)
-        -> std::expected<void, BTreeError> {
-        auto writable = buffer_pool_.fetch_index_page_for_write(page_id);
-        if (!writable) {
-            return std::unexpected(BTreeError{writable.error()});
-        }
-        **writable = std::move(page);
-        return {};
-    };
-    auto wrote_right = write_page(right_page_id, std::move(right_buffer));
-    if (!wrote_right) {
-        return std::unexpected(wrote_right.error());
-    }
-    auto wrote_left = write_page(leaf.page_id, std::move(left_buffer));
-    if (!wrote_left) {
-        return std::unexpected(wrote_left.error());
-    }
-    auto wrote_parent = write_page(parent_page_id, std::move(parent_buffer));
-    if (!wrote_parent) {
-        return std::unexpected(wrote_parent.error());
-    }
-    return {};
+    return write_page_updates(buffer_pool_, std::move(updates));
 }
 
 std::expected<void, BTreeError> BTree::split_non_root_internal(
@@ -1114,66 +1098,42 @@ std::expected<void, BTreeError> BTree::split_level_two_internal(
         reparented_leaf_pages.push_back(std::move(*child));
     }
 
-    std::vector<std::pair<common::PageId, storage::PageBuffer>> pages;
-    const auto encode_leaf = [&pages](const LeafPage& page)
-        -> std::expected<void, BTreeError> {
-        storage::PageBuffer buffer{};
-        auto encoded = encode_leaf_page(buffer, page);
-        if (!encoded) {
-            return std::unexpected(BTreeError{encoded.error()});
-        }
-        pages.emplace_back(page.page_id, std::move(buffer));
-        return {};
-    };
-    const auto encode_internal = [&pages](const InternalPage& page)
-        -> std::expected<void, BTreeError> {
-        storage::PageBuffer buffer{};
-        auto encoded = encode_internal_page(buffer, page);
-        if (!encoded) {
-            return std::unexpected(BTreeError{encoded.error()});
-        }
-        pages.emplace_back(page.page_id, std::move(buffer));
-        return {};
-    };
-
-    if (auto encoded = encode_leaf(leaf); !encoded) {
-        return std::unexpected(encoded.error());
+    std::vector<PageUpdate> updates;
+    if (auto added = add_page_update(updates, leaf); !added) {
+        return std::unexpected(added.error());
     }
-    if (auto encoded = encode_leaf(right_leaf); !encoded) {
-        return std::unexpected(encoded.error());
+    if (auto added = add_page_update(updates, right_leaf); !added) {
+        return std::unexpected(added.error());
     }
     for (const auto& page : reparented_leaf_pages) {
-        if (auto encoded = encode_leaf(page); !encoded) {
-            return std::unexpected(encoded.error());
+        if (auto added = add_page_update(updates, page); !added) {
+            return std::unexpected(added.error());
         }
     }
-    if (auto encoded = encode_internal(left_internal); !encoded) {
-        return std::unexpected(encoded.error());
+    if (auto added = add_page_update(updates, left_internal); !added) {
+        return std::unexpected(added.error());
     }
-    if (auto encoded = encode_internal(right_internal); !encoded) {
-        return std::unexpected(encoded.error());
+    if (auto added = add_page_update(updates, right_internal); !added) {
+        return std::unexpected(added.error());
     }
     for (const auto& page : reparented_internal_pages) {
-        if (auto encoded = encode_internal(page); !encoded) {
-            return std::unexpected(encoded.error());
+        if (auto added = add_page_update(updates, page); !added) {
+            return std::unexpected(added.error());
         }
     }
-    if (auto encoded = encode_internal(root); !encoded) {
-        return std::unexpected(encoded.error());
+    if (auto added = add_page_update(updates, root); !added) {
+        return std::unexpected(added.error());
     }
-    if (auto encoded = encode_internal(right_root); !encoded) {
-        return std::unexpected(encoded.error());
+    if (auto added = add_page_update(updates, right_root); !added) {
+        return std::unexpected(added.error());
     }
-    if (auto encoded = encode_internal(upper); !encoded) {
-        return std::unexpected(encoded.error());
+    if (auto added = add_page_update(updates, upper); !added) {
+        return std::unexpected(added.error());
     }
 
-    for (auto& [page_id, page] : pages) {
-        auto writable = buffer_pool_.fetch_index_page_for_write(page_id);
-        if (!writable) {
-            return std::unexpected(BTreeError{writable.error()});
-        }
-        **writable = std::move(page);
+    auto written = write_page_updates(buffer_pool_, std::move(updates));
+    if (!written) {
+        return std::unexpected(written.error());
     }
     if (new_root_page_id) {
         root_page_id_ = *new_root_page_id;
