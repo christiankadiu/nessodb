@@ -192,6 +192,86 @@ std::expected<void, BTreeError> write_page_updates(
 
 }  // namespace
 
+BTreeCursor::BTreeCursor(storage::BufferPool& buffer_pool, LeafPage leaf,
+                         std::size_t entry_index,
+                         std::optional<BTreeKeyBound> lower_bound,
+                         std::optional<BTreeKeyBound> upper_bound)
+    : buffer_pool_(&buffer_pool),
+      leaf_(std::move(leaf)),
+      entry_index_(entry_index),
+      lower_bound_(std::move(lower_bound)),
+      upper_bound_(std::move(upper_bound)),
+      requires_parent_(leaf_->parent_page_id.has_value()) {
+    visited_pages_.insert(leaf_->page_id.value);
+}
+
+std::expected<std::optional<LeafEntry>, BTreeError> BTreeCursor::next() {
+    while (leaf_) {
+        if (entry_index_ < leaf_->entries.size()) {
+            const LeafEntry& entry = leaf_->entries[entry_index_++];
+            if (last_key_ &&
+                compare_encoded_keys(entry.key, *last_key_) ==
+                    std::strong_ordering::less) {
+                return std::unexpected(
+                    BTreeError{BTreeErrorCode::invalid_tree_structure});
+            }
+            if (lower_bound_) {
+                const auto order =
+                    compare_encoded_keys(entry.key, lower_bound_->key);
+                if (order == std::strong_ordering::less ||
+                    (order == std::strong_ordering::equal &&
+                     !lower_bound_->inclusive)) {
+                    last_key_ = entry.key;
+                    continue;
+                }
+                lower_bound_.reset();
+            }
+            if (upper_bound_) {
+                const auto order =
+                    compare_encoded_keys(entry.key, upper_bound_->key);
+                if (order == std::strong_ordering::greater ||
+                    (order == std::strong_ordering::equal &&
+                     !upper_bound_->inclusive)) {
+                    leaf_.reset();
+                    return std::optional<LeafEntry>{};
+                }
+            }
+            last_key_ = entry.key;
+            return std::optional<LeafEntry>{entry};
+        }
+
+        if (!leaf_->next_page_id) {
+            leaf_.reset();
+            return std::optional<LeafEntry>{};
+        }
+        if (!requires_parent_) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+
+        const common::PageId next_page_id = *leaf_->next_page_id;
+        if (!visited_pages_.insert(next_page_id.value).second) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::leaf_chain_cycle});
+        }
+        auto page = buffer_pool_->fetch_index_page(next_page_id);
+        if (!page) {
+            return std::unexpected(BTreeError{page.error()});
+        }
+        auto decoded = decode_leaf_page(**page);
+        if (!decoded) {
+            return std::unexpected(BTreeError{decoded.error()});
+        }
+        if (!decoded->parent_page_id) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        leaf_ = std::move(*decoded);
+        entry_index_ = 0;
+    }
+    return std::optional<LeafEntry>{};
+}
+
 std::expected<BTree, BTreeError> BTree::create(
     storage::BufferPool& buffer_pool) {
     auto root = buffer_pool.allocate_index_leaf_page();
@@ -314,6 +394,60 @@ std::expected<BTree::LeafLocation, BTreeError> BTree::locate_leaf(
     }
 }
 
+std::expected<BTree::LeafLocation, BTreeError>
+BTree::locate_leftmost_leaf() const {
+    std::unordered_set<std::uint64_t> visited_pages;
+    common::PageId current_page_id = root_page_id_;
+    std::vector<common::PageId> internal_path;
+    std::optional<std::uint16_t> expected_level;
+    while (true) {
+        if (!visited_pages.insert(current_page_id.value).second) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+
+        auto page = buffer_pool_.fetch_index_page(current_page_id);
+        if (!page) {
+            return std::unexpected(BTreeError{page.error()});
+        }
+        const auto header = storage::decode_page_header(**page);
+        if (!header) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        const std::optional<common::PageId> parent_page_id =
+            internal_path.empty()
+                ? std::nullopt
+                : std::optional{internal_path.back()};
+        if (header->type == storage::PageType::index_leaf) {
+            auto leaf = decode_leaf_page(**page);
+            if (!leaf) {
+                return std::unexpected(BTreeError{leaf.error()});
+            }
+            if (leaf->parent_page_id != parent_page_id ||
+                (expected_level && *expected_level != 0)) {
+                return std::unexpected(
+                    BTreeError{BTreeErrorCode::invalid_tree_structure});
+            }
+            return LeafLocation{current_page_id,
+                                std::move(internal_path)};
+        }
+
+        auto internal = decode_internal_page(**page);
+        if (!internal) {
+            return std::unexpected(BTreeError{internal.error()});
+        }
+        if (internal->parent_page_id != parent_page_id ||
+            (expected_level && internal->level != *expected_level)) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        internal_path.push_back(current_page_id);
+        expected_level = static_cast<std::uint16_t>(internal->level - 1);
+        current_page_id = internal->leftmost_child;
+    }
+}
+
 std::expected<std::vector<storage::RecordId>, BTreeError> BTree::find(
     std::span<const std::byte> key) const {
     auto valid_key = validate_key(key);
@@ -371,6 +505,71 @@ std::expected<std::vector<storage::RecordId>, BTreeError> BTree::find(
         }
         current_page_id = *leaf->next_page_id;
     }
+}
+
+std::expected<BTreeCursor, BTreeError> BTree::scan(
+    BTreeRange range) const {
+    if (range.lower) {
+        auto valid = validate_key(range.lower->key);
+        if (!valid) {
+            return std::unexpected(BTreeError{valid.error()});
+        }
+    }
+    if (range.upper) {
+        auto valid = validate_key(range.upper->key);
+        if (!valid) {
+            return std::unexpected(BTreeError{valid.error()});
+        }
+    }
+    if (range.lower && range.upper &&
+        compare_encoded_keys(range.lower->key, range.upper->key) ==
+            std::strong_ordering::greater) {
+        return std::unexpected(BTreeError{BTreeErrorCode::invalid_range});
+    }
+
+    std::expected<LeafLocation, BTreeError> location =
+        range.lower ? locate_leaf(range.lower->key, false)
+                    : locate_leftmost_leaf();
+    if (!location) {
+        return std::unexpected(location.error());
+    }
+
+    LeafPage leaf;
+    {
+        auto page = buffer_pool_.fetch_index_page(location->page_id);
+        if (!page) {
+            return std::unexpected(BTreeError{page.error()});
+        }
+        auto decoded = decode_leaf_page(**page);
+        if (!decoded) {
+            return std::unexpected(BTreeError{decoded.error()});
+        }
+        const std::optional<common::PageId> parent_page_id =
+            location->internal_path.empty()
+                ? std::nullopt
+                : std::optional{location->internal_path.back()};
+        if (decoded->parent_page_id != parent_page_id) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        leaf = std::move(*decoded);
+    }
+
+    std::size_t entry_index = 0;
+    if (range.lower) {
+        while (entry_index < leaf.entries.size()) {
+            const auto order = compare_encoded_keys(
+                leaf.entries[entry_index].key, range.lower->key);
+            if (order == std::strong_ordering::greater ||
+                (order == std::strong_ordering::equal &&
+                 range.lower->inclusive)) {
+                break;
+            }
+            ++entry_index;
+        }
+    }
+    return BTreeCursor{buffer_pool_, std::move(leaf), entry_index,
+                       std::move(range.lower), std::move(range.upper)};
 }
 
 std::expected<void, BTreeError> BTree::insert(

@@ -6,9 +6,11 @@
 #include "storage/buffer/buffer_pool.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <span>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -21,10 +23,43 @@ enum class BTreeErrorCode {
     unsupported_tree_height,
     invalid_tree_structure,
     leaf_chain_cycle,
+    invalid_range,
 };
 
 using BTreeError = std::variant<storage::BufferPoolError, IndexPageError,
                                 BTreeErrorCode>;
+
+struct BTreeKeyBound {
+    EncodedKey key;
+    bool inclusive{true};
+};
+
+struct BTreeRange {
+    std::optional<BTreeKeyBound> lower;
+    std::optional<BTreeKeyBound> upper;
+};
+
+class BTreeCursor {
+public:
+    [[nodiscard]] std::expected<std::optional<LeafEntry>, BTreeError> next();
+
+private:
+    friend class BTree;
+
+    BTreeCursor(storage::BufferPool& buffer_pool, LeafPage leaf,
+                std::size_t entry_index,
+                std::optional<BTreeKeyBound> lower_bound,
+                std::optional<BTreeKeyBound> upper_bound);
+
+    storage::BufferPool* buffer_pool_;
+    std::optional<LeafPage> leaf_;
+    std::size_t entry_index_;
+    std::optional<BTreeKeyBound> lower_bound_;
+    std::optional<BTreeKeyBound> upper_bound_;
+    std::optional<EncodedKey> last_key_;
+    std::unordered_set<std::uint64_t> visited_pages_;
+    bool requires_parent_;
+};
 
 class BTree {
 public:
@@ -36,6 +71,8 @@ public:
     [[nodiscard]] common::PageId root_page_id() const noexcept;
     [[nodiscard]] std::expected<std::vector<storage::RecordId>, BTreeError>
     find(std::span<const std::byte> key) const;
+    [[nodiscard]] std::expected<BTreeCursor, BTreeError> scan(
+        BTreeRange range = {}) const;
     [[nodiscard]] std::expected<void, BTreeError> insert(
         std::span<const std::byte> key, storage::RecordId record_id);
 
@@ -49,6 +86,8 @@ private:
           common::PageId root_page_id) noexcept;
     [[nodiscard]] std::expected<LeafLocation, BTreeError> locate_leaf(
         std::span<const std::byte> key, bool right_bias) const;
+    [[nodiscard]] std::expected<LeafLocation, BTreeError>
+    locate_leftmost_leaf() const;
     [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
         LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_leaf_recursively(
