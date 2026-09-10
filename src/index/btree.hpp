@@ -51,21 +51,8 @@ private:
         std::span<const std::byte> key, bool right_bias) const;
     [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
         LeafPage leaf);
-    [[nodiscard]] std::expected<void, BTreeError> split_child_leaf(
+    [[nodiscard]] std::expected<void, BTreeError> split_leaf_recursively(
         LeafPage leaf, std::span<const common::PageId> internal_path);
-    [[nodiscard]] std::expected<void, BTreeError> split_non_root_internal(
-        LeafPage leaf, std::vector<LeafEntry> right_entries,
-        InternalPage parent, std::size_t insertion_index,
-        std::span<const common::PageId> internal_path);
-    [[nodiscard]] std::expected<void, BTreeError> split_level_two_internal(
-        LeafPage leaf, std::vector<LeafEntry> right_entries,
-        common::PageId right_leaf_page_id, InternalPage left_internal,
-        InternalPage right_internal, InternalPage root,
-        std::size_t root_insertion_index, EncodedKey separator,
-        std::span<const common::PageId> internal_path);
-    [[nodiscard]] std::expected<void, BTreeError> split_internal_root(
-        LeafPage leaf, std::vector<LeafEntry> right_entries,
-        InternalPage root, std::size_t insertion_index);
 
     storage::BufferPool& buffer_pool_;
     common::PageId root_page_id_;
