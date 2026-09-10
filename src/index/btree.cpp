@@ -572,6 +572,90 @@ std::expected<BTreeCursor, BTreeError> BTree::scan(
                        std::move(range.lower), std::move(range.upper)};
 }
 
+std::expected<void, BTreeError> BTree::erase(
+    std::span<const std::byte> key, storage::RecordId record_id) {
+    auto valid_key = validate_key(key);
+    if (!valid_key) {
+        return std::unexpected(BTreeError{valid_key.error()});
+    }
+    if (!record_id.is_valid()) {
+        return std::unexpected(BTreeError{BTreeErrorCode::invalid_record_id});
+    }
+
+    auto location = locate_leaf(key, false);
+    if (!location) {
+        return std::unexpected(location.error());
+    }
+
+    std::unordered_set<std::uint64_t> visited_pages;
+    common::PageId current_page_id = location->page_id;
+    const std::optional<common::PageId> parent_page_id =
+        location->internal_path.empty()
+            ? std::nullopt
+            : std::optional{location->internal_path.back()};
+    bool first_leaf = true;
+    while (true) {
+        if (!visited_pages.insert(current_page_id.value).second) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::leaf_chain_cycle});
+        }
+
+        LeafPage leaf;
+        {
+            auto page = buffer_pool_.fetch_index_page(current_page_id);
+            if (!page) {
+                return std::unexpected(BTreeError{page.error()});
+            }
+            auto decoded = decode_leaf_page(**page);
+            if (!decoded) {
+                return std::unexpected(BTreeError{decoded.error()});
+            }
+            if ((first_leaf && decoded->parent_page_id != parent_page_id) ||
+                (!first_leaf && parent_page_id &&
+                 !decoded->parent_page_id) ||
+                (!first_leaf && !parent_page_id)) {
+                return std::unexpected(
+                    BTreeError{BTreeErrorCode::invalid_tree_structure});
+            }
+            leaf = std::move(*decoded);
+        }
+        first_leaf = false;
+
+        for (auto entry = leaf.entries.begin();
+             entry != leaf.entries.end(); ++entry) {
+            const auto order = compare_encoded_keys(entry->key, key);
+            if (order == std::strong_ordering::greater) {
+                return std::unexpected(
+                    BTreeError{BTreeErrorCode::entry_not_found});
+            }
+            if (order != std::strong_ordering::equal ||
+                entry->record_id != record_id) {
+                continue;
+            }
+
+            leaf.entries.erase(entry);
+            storage::PageBuffer encoded{};
+            auto encoded_leaf = encode_leaf_page(encoded, leaf);
+            if (!encoded_leaf) {
+                return std::unexpected(BTreeError{encoded_leaf.error()});
+            }
+            auto writable =
+                buffer_pool_.fetch_index_page_for_write(current_page_id);
+            if (!writable) {
+                return std::unexpected(BTreeError{writable.error()});
+            }
+            **writable = std::move(encoded);
+            return {};
+        }
+
+        if (!leaf.next_page_id) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::entry_not_found});
+        }
+        current_page_id = *leaf.next_page_id;
+    }
+}
+
 std::expected<void, BTreeError> BTree::insert(
     std::span<const std::byte> key, storage::RecordId record_id) {
     auto valid_key = validate_key(key);

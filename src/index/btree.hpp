@@ -20,6 +20,7 @@ enum class BTreeErrorCode {
     invalid_root_page_id,
     invalid_record_id,
     duplicate_entry,
+    entry_not_found,
     unsupported_tree_height,
     invalid_tree_structure,
     leaf_chain_cycle,
@@ -73,6 +74,8 @@ public:
     find(std::span<const std::byte> key) const;
     [[nodiscard]] std::expected<BTreeCursor, BTreeError> scan(
         BTreeRange range = {}) const;
+    [[nodiscard]] std::expected<void, BTreeError> erase(
+        std::span<const std::byte> key, storage::RecordId record_id);
     [[nodiscard]] std::expected<void, BTreeError> insert(
         std::span<const std::byte> key, storage::RecordId record_id);
 
