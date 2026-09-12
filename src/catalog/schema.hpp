@@ -11,6 +11,7 @@ namespace minidb::catalog {
 struct ColumnSchema {
     std::string name;
     types::LogicalType type;
+    bool primary_key{};
 };
 
 struct TableSchema {

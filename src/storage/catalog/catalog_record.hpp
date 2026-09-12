@@ -12,7 +12,7 @@
 
 namespace minidb::storage {
 
-inline constexpr std::int64_t catalog_record_format_version = 1;
+inline constexpr std::int64_t catalog_record_format_version = 2;
 
 struct CatalogTableRecord {
     common::TableId table_id;
@@ -27,7 +27,18 @@ struct CatalogColumnRecord {
     catalog::ColumnSchema column;
 };
 
-using CatalogRecord = std::variant<CatalogTableRecord, CatalogColumnRecord>;
+struct CatalogIndexRecord {
+    common::TableId table_id;
+    std::uint64_t ordinal;
+    std::string name;
+    common::PageId root_page_id;
+    bool unique{};
+    bool primary_key{};
+};
+
+using CatalogRecord =
+    std::variant<CatalogTableRecord, CatalogColumnRecord,
+                 CatalogIndexRecord>;
 
 enum class CatalogRecordError {
     invalid_field_count,
@@ -40,6 +51,8 @@ enum class CatalogRecordError {
     empty_name,
     invalid_logical_type,
     invalid_first_page_id,
+    invalid_index_root,
+    invalid_index_flags,
     numeric_value_out_of_range,
 };
 

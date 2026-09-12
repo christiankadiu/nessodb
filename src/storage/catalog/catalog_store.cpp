@@ -4,6 +4,7 @@
 #include "storage/catalog/catalog_record.hpp"
 #include "storage/page/page.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <unordered_map>
 #include <utility>
@@ -28,6 +29,13 @@ std::expected<void, CatalogStoreError> validate_catalog_row(const Row& row) {
 }
 
 bool valid_table_root(const DatabaseFile& database_file,
+                      common::PageId page_id) noexcept {
+    return page_id.is_valid() && page_id.value != 0 &&
+           page_id.value < database_file.header().page_count &&
+           page_id != database_file.header().catalog_root;
+}
+
+bool valid_index_root(const DatabaseFile& database_file,
                       common::PageId page_id) noexcept {
     return page_id.is_valid() && page_id.value != 0 &&
            page_id.value < database_file.header().page_count &&
@@ -87,6 +95,7 @@ std::expected<void, CatalogStoreError> CatalogStore::validate_table(
         return std::unexpected(valid_table_row.error());
     }
 
+    bool has_primary_key = false;
     for (std::size_t ordinal = 0; ordinal < schema.columns.size(); ++ordinal) {
         for (std::size_t existing = 0; existing < ordinal; ++existing) {
             if (common::identifiers_equal(schema.columns[ordinal].name,
@@ -95,6 +104,12 @@ std::expected<void, CatalogStoreError> CatalogStore::validate_table(
                     CatalogStoreErrorCode::duplicate_column_name});
             }
         }
+        if (schema.columns[ordinal].primary_key && has_primary_key) {
+            return std::unexpected(CatalogStoreError{
+                CatalogStoreErrorCode::multiple_primary_keys});
+        }
+        has_primary_key =
+            has_primary_key || schema.columns[ordinal].primary_key;
         auto column_row = encode_catalog_record(CatalogColumnRecord{
             schema.id, static_cast<std::uint64_t>(ordinal), schema.columns[ordinal]});
         if (!column_row) {
@@ -132,7 +147,8 @@ std::expected<void, CatalogStoreError> CatalogStore::validate_table(
 }
 
 std::expected<void, CatalogStoreError> CatalogStore::add_table(
-    const catalog::TableSchema& schema, common::PageId first_page_id) {
+    const catalog::TableSchema& schema, common::PageId first_page_id,
+    std::vector<StoredIndexMetadata> indexes) {
     if (!valid_table_root(database_file_, first_page_id)) {
         return std::unexpected(
             CatalogStoreError{CatalogStoreErrorCode::invalid_table_root});
@@ -140,6 +156,35 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
     auto valid_table = validate_table(schema);
     if (!valid_table) {
         return std::unexpected(valid_table.error());
+    }
+
+    std::size_t primary_index_count = 0;
+    for (const auto& index : indexes) {
+        if (index.column_index >= schema.columns.size()) {
+            return std::unexpected(CatalogStoreError{
+                CatalogStoreErrorCode::invalid_index_column});
+        }
+        if (!valid_index_root(database_file_, index.root_page_id) ||
+            index.root_page_id == first_page_id) {
+            return std::unexpected(CatalogStoreError{
+                CatalogStoreErrorCode::invalid_index_root});
+        }
+        if (index.primary_key &&
+            (!index.unique ||
+             !schema.columns[index.column_index].primary_key)) {
+            return std::unexpected(CatalogStoreError{
+                CatalogStoreErrorCode::invalid_index_column});
+        }
+        primary_index_count += index.primary_key ? 1 : 0;
+    }
+    const bool schema_has_primary_key = std::any_of(
+        schema.columns.begin(), schema.columns.end(),
+        [](const catalog::ColumnSchema& column) {
+            return column.primary_key;
+        });
+    if (primary_index_count != (schema_has_primary_key ? 1U : 0U)) {
+        return std::unexpected(CatalogStoreError{
+            CatalogStoreErrorCode::missing_primary_index});
     }
 
     auto table_row = encode_catalog_record(
@@ -160,7 +205,26 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
         column_rows.push_back(std::move(*column_row));
     }
 
+    std::vector<Row> index_rows;
+    index_rows.reserve(indexes.size());
+    for (const auto& index : indexes) {
+        auto index_row = encode_catalog_record(CatalogIndexRecord{
+            schema.id, static_cast<std::uint64_t>(index.column_index),
+            index.name, index.root_page_id, index.unique,
+            index.primary_key});
+        if (!index_row) {
+            return std::unexpected(CatalogStoreError{index_row.error()});
+        }
+        index_rows.push_back(std::move(*index_row));
+    }
+
     for (const auto& row : column_rows) {
+        auto inserted = table_heap_.insert(row);
+        if (!inserted) {
+            return std::unexpected(CatalogStoreError{inserted.error()});
+        }
+    }
+    for (const auto& row : index_rows) {
         auto inserted = table_heap_.insert(row);
         if (!inserted) {
             return std::unexpected(CatalogStoreError{inserted.error()});
@@ -182,6 +246,31 @@ std::expected<void, CatalogStoreError> CatalogStore::add_table(
     return {};
 }
 
+std::expected<void, CatalogStoreError> CatalogStore::update_index_root(
+    common::TableId table_id, const StoredIndexMetadata& index) {
+    if (!table_id.is_valid() ||
+        !valid_index_root(database_file_, index.root_page_id)) {
+        return std::unexpected(CatalogStoreError{
+            CatalogStoreErrorCode::invalid_index_root});
+    }
+    auto row = encode_catalog_record(CatalogIndexRecord{
+        table_id, static_cast<std::uint64_t>(index.column_index),
+        index.name, index.root_page_id, index.unique,
+        index.primary_key});
+    if (!row) {
+        return std::unexpected(CatalogStoreError{row.error()});
+    }
+    auto inserted = table_heap_.insert(*row);
+    if (!inserted) {
+        return std::unexpected(CatalogStoreError{inserted.error()});
+    }
+    auto flushed = buffer_pool_.flush();
+    if (!flushed) {
+        return std::unexpected(CatalogStoreError{flushed.error()});
+    }
+    return {};
+}
+
 std::expected<std::vector<StoredTableMetadata>, CatalogStoreError>
 CatalogStore::load_tables() const {
     auto rows = table_heap_.scan();
@@ -191,7 +280,9 @@ CatalogStore::load_tables() const {
 
     std::unordered_map<std::uint64_t, std::vector<CatalogColumnRecord>>
         pending_columns;
-    std::vector<StoredTableMetadata> tables;
+    std::unordered_map<std::uint64_t, std::vector<CatalogIndexRecord>>
+        pending_indexes;
+    std::vector<CatalogTableRecord> table_records;
     for (const auto& row : *rows) {
         auto record = decode_catalog_record(row);
         if (!record) {
@@ -201,8 +292,17 @@ CatalogStore::load_tables() const {
             pending_columns[column->table_id.value].push_back(std::move(*column));
             continue;
         }
+        if (auto* index = std::get_if<CatalogIndexRecord>(&*record)) {
+            pending_indexes[index->table_id.value].push_back(
+                std::move(*index));
+            continue;
+        }
+        table_records.push_back(std::get<CatalogTableRecord>(std::move(*record)));
+    }
 
-        const auto& table = std::get<CatalogTableRecord>(*record);
+    std::vector<StoredTableMetadata> tables;
+    tables.reserve(table_records.size());
+    for (const auto& table : table_records) {
         if (!valid_table_root(database_file_, table.first_page_id)) {
             return std::unexpected(
                 CatalogStoreError{CatalogStoreErrorCode::invalid_table_root});
@@ -223,7 +323,7 @@ CatalogStore::load_tables() const {
             return std::unexpected(
                 CatalogStoreError{CatalogStoreErrorCode::incomplete_table});
         }
-        const std::size_t first_column =
+        const auto first_column =
             candidates.size() - static_cast<std::size_t>(table.column_count);
 
         catalog::TableSchema schema;
@@ -246,8 +346,59 @@ CatalogStore::load_tables() const {
             schema.columns.push_back(std::move(column.column));
         }
         pending_columns.erase(table.table_id.value);
-        tables.push_back(
-            StoredTableMetadata{std::move(schema), table.first_page_id});
+
+        std::vector<StoredIndexMetadata> indexes;
+        auto& stored_indexes = pending_indexes[table.table_id.value];
+        for (const auto& index : stored_indexes) {
+            if (index.ordinal >= schema.columns.size() ||
+                !valid_index_root(database_file_, index.root_page_id) ||
+                index.root_page_id == table.first_page_id) {
+                return std::unexpected(CatalogStoreError{
+                    CatalogStoreErrorCode::invalid_index_root});
+            }
+            const auto column_index =
+                static_cast<std::size_t>(index.ordinal);
+            if (index.primary_key &&
+                (!index.unique ||
+                 !schema.columns[column_index].primary_key)) {
+                return std::unexpected(CatalogStoreError{
+                    CatalogStoreErrorCode::invalid_index_column});
+            }
+            const auto existing = std::find_if(
+                indexes.begin(), indexes.end(),
+                [&index](const StoredIndexMetadata& candidate) {
+                    return candidate.column_index == index.ordinal &&
+                           candidate.name == index.name;
+                });
+            StoredIndexMetadata metadata{
+                index.name, column_index, index.root_page_id,
+                index.unique, index.primary_key};
+            if (existing == indexes.end()) {
+                indexes.push_back(std::move(metadata));
+            } else {
+                *existing = std::move(metadata);
+            }
+        }
+        pending_indexes.erase(table.table_id.value);
+
+        const auto primary_columns = static_cast<std::size_t>(std::count_if(
+            schema.columns.begin(), schema.columns.end(),
+            [](const catalog::ColumnSchema& column) {
+                return column.primary_key;
+            }));
+        const auto primary_indexes = static_cast<std::size_t>(std::count_if(
+            indexes.begin(), indexes.end(),
+            [](const StoredIndexMetadata& index) {
+                return index.primary_key;
+            }));
+        if (primary_columns > 1 || primary_indexes != primary_columns) {
+            return std::unexpected(CatalogStoreError{
+                primary_columns > 1
+                    ? CatalogStoreErrorCode::multiple_primary_keys
+                    : CatalogStoreErrorCode::missing_primary_index});
+        }
+        tables.push_back(StoredTableMetadata{
+            std::move(schema), table.first_page_id, std::move(indexes)});
     }
     return tables;
 }

@@ -1,11 +1,13 @@
 #pragma once
 
 #include "common/table_id.hpp"
+#include "index/btree.hpp"
 #include "storage/access/record_id.hpp"
 #include "storage/access/row.hpp"
 #include "storage/access/stored_row.hpp"
 #include "storage/catalog/catalog_store.hpp"
 #include "storage/io/database_file.hpp"
+#include "types/value.hpp"
 
 #include <cstddef>
 #include <expected>
@@ -22,11 +24,16 @@ inline constexpr std::size_t default_buffer_pool_capacity = 64;
 enum class StorageManagerErrorCode {
     invalid_buffer_pool_capacity,
     table_not_found,
+    primary_key_not_found,
+    primary_key_null,
+    unique_constraint_violation,
+    invalid_row_shape,
 };
 
 using StorageManagerError =
     std::variant<DatabaseFileError, BufferPoolError, CatalogStoreError,
-                 TableHeapError, StorageManagerErrorCode>;
+                 TableHeapError, index::BTreeError,
+                 StorageManagerErrorCode>;
 
 class StorageManager {
 public:
@@ -60,6 +67,9 @@ public:
         common::TableId table_id) const;
     [[nodiscard]] std::expected<std::vector<StoredRow>, StorageManagerError>
     scan_records(common::TableId table_id) const;
+    [[nodiscard]] std::expected<std::vector<Row>, StorageManagerError>
+    lookup_primary_key(common::TableId table_id,
+                       const types::Value& value) const;
 
 private:
     struct State;

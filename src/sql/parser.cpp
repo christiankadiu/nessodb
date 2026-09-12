@@ -1189,13 +1189,31 @@ std::expected<CreateTableStatement, ParseError> Parser::parse_create_table_state
             return std::unexpected(
                 ParseError{ParseErrorCode::expected_column_type, token->location});
         }
-        statement.columns.push_back(
-            ColumnDefinition{column_name.lexeme, column_type, column_name.location});
-
         token = next_token();
         if (!token) {
             return std::unexpected(token.error());
         }
+        bool primary_key = false;
+        if (token->type == TokenType::primary) {
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+            if (token->type != TokenType::key) {
+                return std::unexpected(
+                    ParseError{ParseErrorCode::expected_key,
+                               token->location});
+            }
+            primary_key = true;
+            token = next_token();
+            if (!token) {
+                return std::unexpected(token.error());
+            }
+        }
+        statement.columns.push_back(ColumnDefinition{
+            column_name.lexeme, column_type, column_name.location,
+            primary_key});
+
         if (token->type == TokenType::right_parenthesis) {
             break;
         }

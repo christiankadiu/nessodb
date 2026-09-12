@@ -41,6 +41,11 @@ struct BoundJoin {
     BoundExpression condition;
 };
 
+struct BoundPrimaryKeyLookup {
+    std::size_t column_index;
+    types::Value value;
+};
+
 struct BoundSelectStatement {
     std::vector<BoundExpression> expressions;
     std::vector<std::string> result_column_names;
@@ -50,6 +55,7 @@ struct BoundSelectStatement {
     common::TableId table_id;
     bool distinct{};
     std::optional<BoundExpression> where;
+    std::optional<BoundPrimaryKeyLookup> primary_key_lookup;
     std::vector<BoundOrderByTerm> order_by;
     std::optional<std::size_t> limit;
     std::optional<std::size_t> offset;
@@ -59,6 +65,7 @@ struct BoundColumnDefinition {
     std::string name;
     types::LogicalType type;
     sql::SourceLocation location;
+    bool primary_key{};
 };
 
 struct BoundCreateTableStatement {

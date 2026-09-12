@@ -12,6 +12,7 @@ namespace {
 
 inline constexpr std::int64_t table_entry_kind = 1;
 inline constexpr std::int64_t column_entry_kind = 2;
+inline constexpr std::int64_t index_entry_kind = 3;
 inline constexpr std::int64_t integer_type_code = 1;
 inline constexpr std::int64_t text_type_code = 2;
 inline constexpr std::size_t catalog_field_count = 8;
@@ -109,26 +110,59 @@ std::expected<Row, CatalogRecordError> encode_catalog_record(
                     static_cast<std::int64_t>(table->column_count)}};
     }
 
-    const auto& column = std::get<CatalogColumnRecord>(record);
+    if (const auto* column = std::get_if<CatalogColumnRecord>(&record)) {
+        auto table_id = encode_identifier(
+            column->table_id.value, CatalogRecordError::invalid_table_id);
+        if (!table_id) {
+            return std::unexpected(table_id.error());
+        }
+        if (column->ordinal > static_cast<std::uint64_t>(
+                                  std::numeric_limits<std::int64_t>::max())) {
+            return std::unexpected(
+                CatalogRecordError::numeric_value_out_of_range);
+        }
+        if (column->column.name.empty()) {
+            return std::unexpected(CatalogRecordError::empty_name);
+        }
+        auto logical_type = encode_logical_type(column->column.type);
+        if (!logical_type) {
+            return std::unexpected(logical_type.error());
+        }
+        return Row{{catalog_record_format_version, column_entry_kind,
+                    *table_id,
+                    static_cast<std::int64_t>(column->ordinal),
+                    column->column.name, *logical_type,
+                    types::NullValue{},
+                    static_cast<std::int64_t>(
+                        column->column.primary_key ? 1 : 0)}};
+    }
+
+    const auto& index = std::get<CatalogIndexRecord>(record);
     auto table_id = encode_identifier(
-        column.table_id.value, CatalogRecordError::invalid_table_id);
+        index.table_id.value, CatalogRecordError::invalid_table_id);
     if (!table_id) {
         return std::unexpected(table_id.error());
     }
-    if (column.ordinal > static_cast<std::uint64_t>(
+    if (index.ordinal > static_cast<std::uint64_t>(
                              std::numeric_limits<std::int64_t>::max())) {
         return std::unexpected(CatalogRecordError::numeric_value_out_of_range);
     }
-    if (column.column.name.empty()) {
+    if (index.name.empty()) {
         return std::unexpected(CatalogRecordError::empty_name);
     }
-    auto logical_type = encode_logical_type(column.column.type);
-    if (!logical_type) {
-        return std::unexpected(logical_type.error());
+    auto root_page_id = encode_identifier(
+        index.root_page_id.value, CatalogRecordError::invalid_index_root);
+    if (!root_page_id) {
+        return std::unexpected(root_page_id.error());
     }
-    return Row{{catalog_record_format_version, column_entry_kind, *table_id,
-                static_cast<std::int64_t>(column.ordinal), column.column.name,
-                *logical_type, types::NullValue{}, types::NullValue{}}};
+    const std::int64_t flags = (index.unique ? 1 : 0) |
+                               (index.primary_key ? 2 : 0);
+    if (index.primary_key && !index.unique) {
+        return std::unexpected(CatalogRecordError::invalid_index_flags);
+    }
+    return Row{{catalog_record_format_version, index_entry_kind, *table_id,
+                static_cast<std::int64_t>(index.ordinal), index.name,
+                types::NullValue{}, *root_page_id, flags}};
 }
 
 std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
@@ -144,7 +178,8 @@ std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
         name == nullptr) {
         return std::unexpected(CatalogRecordError::field_type_mismatch);
     }
-    if (*format_version != catalog_record_format_version) {
+    if (*format_version != 1 &&
+        *format_version != catalog_record_format_version) {
         return std::unexpected(CatalogRecordError::unsupported_format_version);
     }
     if (*table_id <= 0) {
@@ -176,8 +211,11 @@ std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
     if (*entry_kind == column_entry_kind) {
         const auto* ordinal = integer_field(row, 3);
         const auto* logical_type = integer_field(row, 5);
-        if (ordinal == nullptr || logical_type == nullptr || !null_field(row, 6) ||
-            !null_field(row, 7)) {
+        const auto* primary_key = integer_field(row, 7);
+        if (ordinal == nullptr || logical_type == nullptr ||
+            !null_field(row, 6) ||
+            (*format_version == 1 ? !null_field(row, 7)
+                                  : primary_key == nullptr)) {
             return std::unexpected(CatalogRecordError::field_type_mismatch);
         }
         if (*ordinal < 0) {
@@ -187,9 +225,41 @@ std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
         if (!decoded_type) {
             return std::unexpected(decoded_type.error());
         }
+        if (primary_key != nullptr &&
+            *primary_key != 0 && *primary_key != 1) {
+            return std::unexpected(CatalogRecordError::invalid_index_flags);
+        }
         return CatalogRecord{CatalogColumnRecord{
             decoded_table_id, static_cast<std::uint64_t>(*ordinal),
-            catalog::ColumnSchema{*name, *decoded_type}}};
+            catalog::ColumnSchema{
+                *name, *decoded_type,
+                primary_key != nullptr && *primary_key == 1}}};
+    }
+    if (*entry_kind == index_entry_kind) {
+        if (*format_version == 1) {
+            return std::unexpected(CatalogRecordError::unknown_entry_kind);
+        }
+        const auto* ordinal = integer_field(row, 3);
+        const auto* root_page_id = integer_field(row, 6);
+        const auto* flags = integer_field(row, 7);
+        if (ordinal == nullptr || !null_field(row, 5) ||
+            root_page_id == nullptr || flags == nullptr) {
+            return std::unexpected(CatalogRecordError::field_type_mismatch);
+        }
+        if (*ordinal < 0) {
+            return std::unexpected(CatalogRecordError::invalid_ordinal);
+        }
+        if (*root_page_id <= 0) {
+            return std::unexpected(CatalogRecordError::invalid_index_root);
+        }
+        if (*flags < 0 || (*flags & ~3) != 0 ||
+            ((*flags & 2) != 0 && (*flags & 1) == 0)) {
+            return std::unexpected(CatalogRecordError::invalid_index_flags);
+        }
+        return CatalogRecord{CatalogIndexRecord{
+            decoded_table_id, static_cast<std::uint64_t>(*ordinal), *name,
+            common::PageId{static_cast<std::uint64_t>(*root_page_id)},
+            (*flags & 1) != 0, (*flags & 2) != 0}};
     }
     return std::unexpected(CatalogRecordError::unknown_entry_kind);
 }
