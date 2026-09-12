@@ -90,6 +90,27 @@ std::unique_ptr<RowOperator> build_operator_tree_impl(
                 return std::make_unique<VectorScanOperator>(
                     std::move(rows));
             },
+            [&table_inputs](planner::PhysicalIndexScan& scan)
+                -> std::unique_ptr<RowOperator> {
+                auto input = table_inputs.begin();
+                while (input != table_inputs.end() &&
+                       input->table_id != scan.table_id) {
+                    ++input;
+                }
+                if (input == table_inputs.end() &&
+                    table_inputs.size() == 1 &&
+                    !table_inputs.front().table_id.is_valid()) {
+                    input = table_inputs.begin();
+                }
+                if (input == table_inputs.end()) {
+                    throw std::logic_error{
+                        "physical index scan has no matching table input"};
+                }
+                auto rows = std::move(input->rows);
+                table_inputs.erase(input);
+                return std::make_unique<VectorScanOperator>(
+                    std::move(rows));
+            },
             [](planner::PhysicalOneRow&)
                 -> std::unique_ptr<RowOperator> {
                 return std::make_unique<VectorScanOperator>(

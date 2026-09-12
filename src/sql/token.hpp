@@ -32,6 +32,8 @@ enum class TokenType {
     offset,
     create,
     table,
+    primary,
+    key,
     insert,
     delete_keyword,
     update,

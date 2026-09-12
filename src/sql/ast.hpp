@@ -204,6 +204,7 @@ struct ColumnDefinition {
     std::string_view name;
     ColumnType type;
     SourceLocation location;
+    bool primary_key{};
 };
 
 struct CreateTableStatement {

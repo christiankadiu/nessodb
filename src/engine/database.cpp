@@ -50,6 +50,35 @@ bool matches_where_clause(std::span<const types::Value> values,
     return *matches;
 }
 
+std::optional<storage::StorageManagerErrorCode> primary_key_violation(
+    const catalog::TableSchema& schema, const storage::Row& candidate,
+    std::span<const storage::InMemoryStoredRow> existing_rows,
+    std::optional<storage::InMemoryRowId> excluded_row = std::nullopt) {
+    for (std::size_t column_index = 0;
+         column_index < schema.columns.size(); ++column_index) {
+        if (!schema.columns[column_index].primary_key) {
+            continue;
+        }
+        if (column_index >= candidate.values.size()) {
+            return storage::StorageManagerErrorCode::invalid_row_shape;
+        }
+        const auto& value = candidate.values[column_index];
+        if (std::holds_alternative<types::NullValue>(value)) {
+            return storage::StorageManagerErrorCode::primary_key_null;
+        }
+        for (const auto& existing : existing_rows) {
+            if ((!excluded_row || existing.row_id != *excluded_row) &&
+                column_index < existing.row.values.size() &&
+                existing.row.values[column_index] == value) {
+                return storage::StorageManagerErrorCode::
+                    unique_constraint_violation;
+            }
+        }
+        break;
+    }
+    return std::nullopt;
+}
+
 ExecutionError execution_error(execution::OperatorError error) noexcept {
     switch (error.code) {
         case execution::OperatorErrorCode::memory_limit_exceeded:
@@ -285,6 +314,9 @@ std::expected<QueryResult, QueryError> Database::execute(
     }
     auto result_column_names =
         std::move(bound->result_column_names);
+    if (std::holds_alternative<storage::InMemoryHeap>(storage_)) {
+        bound->primary_key_lookup.reset();
+    }
 
     std::vector<common::TableId> table_ids;
     if (bound->table_id.is_valid()) {
@@ -312,8 +344,14 @@ std::expected<QueryResult, QueryError> Database::execute(
             }
             stored_rows = std::move(*scanned);
         } else {
-            auto scanned = std::get<storage::StorageManager>(storage_).scan(
-                table_id);
+            auto& storage_manager =
+                std::get<storage::StorageManager>(storage_);
+            auto scanned = bound->primary_key_lookup &&
+                                   table_id == bound->table_id
+                               ? storage_manager.lookup_primary_key(
+                                     table_id,
+                                     bound->primary_key_lookup->value)
+                               : storage_manager.scan(table_id);
             if (!scanned) {
                 return std::unexpected(QueryError{StorageError{
                     std::move(scanned.error())}});
@@ -344,6 +382,9 @@ std::expected<QueryResult, QueryError> Database::execute(
     auto bound = binder::bind_select_statement(statement.select, catalog_);
     if (!bound) {
         return std::unexpected(QueryError{bound.error()});
+    }
+    if (std::holds_alternative<storage::InMemoryHeap>(storage_)) {
+        bound->primary_key_lookup.reset();
     }
     if (bound->table_id.is_valid()) {
         auto locked = acquire_table_lock(
@@ -390,7 +431,8 @@ std::expected<QueryResult, QueryError> Database::execute(
     schema.name = std::move(bound->table_name);
     schema.columns.reserve(bound->columns.size());
     for (auto& column : bound->columns) {
-        schema.columns.push_back(catalog::ColumnSchema{std::move(column.name), column.type});
+        schema.columns.push_back(catalog::ColumnSchema{
+            std::move(column.name), column.type, column.primary_key});
     }
 
     auto updated_catalog = catalog_;
@@ -431,6 +473,16 @@ std::expected<QueryResult, QueryError> Database::execute(
 
     storage::Row row{std::move(bound->values)};
     if (auto* heap = std::get_if<storage::InMemoryHeap>(&storage_)) {
+        const auto* schema = catalog_.find_table(bound->table_id);
+        auto records = heap->scan_records(bound->table_id);
+        if (schema == nullptr || !records) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
+        if (const auto violation = primary_key_violation(
+                *schema, row, *records)) {
+            return std::unexpected(QueryError{StorageError{
+                storage::StorageManagerError{*violation}}});
+        }
         auto inserted = heap->insert(bound->table_id, std::move(row));
         if (!inserted) {
             throw std::logic_error{"catalog and heap table state diverged"};
@@ -526,6 +578,10 @@ std::expected<QueryResult, QueryError> Database::execute(
         if (!records) {
             throw std::logic_error{"catalog and heap table state diverged"};
         }
+        const auto* schema = catalog_.find_table(bound->table_id);
+        if (schema == nullptr) {
+            throw std::logic_error{"catalog and heap table state diverged"};
+        }
 
         for (auto& record : *records) {
             if (bound->where &&
@@ -534,6 +590,17 @@ std::expected<QueryResult, QueryError> Database::execute(
             }
             storage::Row before = record.row;
             apply_assignments(record.row, bound->assignments);
+            auto current_records = heap->scan_records(bound->table_id);
+            if (!current_records) {
+                throw std::logic_error{
+                    "heap table state diverged during update"};
+            }
+            if (const auto violation = primary_key_violation(
+                    *schema, record.row, *current_records,
+                    record.row_id)) {
+                return std::unexpected(QueryError{StorageError{
+                    storage::StorageManagerError{*violation}}});
+            }
             auto updated = heap->update(bound->table_id, record.row_id,
                                         std::move(record.row));
             if (!updated) {

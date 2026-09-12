@@ -32,6 +32,12 @@ PhysicalPlanPtr plan_physical(LogicalPlanPtr logical_plan) {
     return std::visit(
         Overloaded{
             [](LogicalTableScan& scan) {
+                if (scan.primary_key_lookup) {
+                    return make_plan(PhysicalIndexScan{
+                        scan.table_id,
+                        scan.primary_key_lookup->column_index,
+                        std::move(scan.primary_key_lookup->value)});
+                }
                 return make_plan(PhysicalSequentialScan{scan.table_id});
             },
             [](LogicalOneRow&) {

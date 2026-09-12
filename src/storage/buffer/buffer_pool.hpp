@@ -28,6 +28,8 @@ struct AllocatedHeapPage {
     WritePageHandle page;
 };
 
+using AllocatedIndexPage = AllocatedHeapPage;
+
 class BufferPool {
 public:
     BufferPool(DatabaseFile& database_file, std::size_t capacity);
@@ -41,10 +43,19 @@ public:
     [[nodiscard]] std::size_t capacity() const noexcept;
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] std::expected<AllocatedHeapPage, BufferPoolError> allocate_heap_page();
+    [[nodiscard]] std::expected<AllocatedIndexPage, BufferPoolError>
+    allocate_index_leaf_page();
+    [[nodiscard]] std::expected<AllocatedIndexPage, BufferPoolError>
+    allocate_index_internal_page(std::uint16_t level,
+                                 common::PageId leftmost_child);
     [[nodiscard]] std::expected<ReadPageHandle, BufferPoolError> fetch_heap_page(
         common::PageId page_id);
     [[nodiscard]] std::expected<WritePageHandle, BufferPoolError> fetch_heap_page_for_write(
         common::PageId page_id);
+    [[nodiscard]] std::expected<ReadPageHandle, BufferPoolError> fetch_index_page(
+        common::PageId page_id);
+    [[nodiscard]] std::expected<WritePageHandle, BufferPoolError>
+    fetch_index_page_for_write(common::PageId page_id);
     [[nodiscard]] std::expected<void, BufferPoolError> flush();
 
 private:
@@ -55,6 +66,8 @@ private:
     };
 
     void touch(Frame& frame) noexcept;
+    [[nodiscard]] std::expected<ReadPageHandle, BufferPoolError> fetch_page(
+        common::PageId page_id);
     [[nodiscard]] std::expected<void, BufferPoolError> ensure_available_frame();
     [[nodiscard]] std::expected<bool, DatabaseFileError> evict_page();
 

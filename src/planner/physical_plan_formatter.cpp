@@ -43,6 +43,13 @@ void append_plan(const PhysicalPlan& plan, std::size_t depth,
                                 "Sequential Scan (table_id=" +
                                 std::to_string(scan.table_id.value) + ')');
             },
+            [depth, &lines](const PhysicalIndexScan& scan) {
+                lines.push_back(indentation(depth) +
+                                "Index Scan (table_id=" +
+                                std::to_string(scan.table_id.value) +
+                                ", column=" +
+                                std::to_string(scan.column_index) + ')');
+            },
             [depth, &lines](const PhysicalOneRow&) {
                 lines.push_back(indentation(depth) + "One Row");
             },

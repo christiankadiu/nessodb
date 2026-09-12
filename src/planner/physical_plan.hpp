@@ -17,6 +17,12 @@ struct PhysicalSequentialScan {
     common::TableId table_id;
 };
 
+struct PhysicalIndexScan {
+    common::TableId table_id;
+    std::size_t column_index;
+    types::Value key;
+};
+
 struct PhysicalOneRow {};
 
 struct PhysicalFilter {
@@ -72,11 +78,11 @@ struct PhysicalLimit {
 };
 
 using PhysicalPlanNode =
-    std::variant<PhysicalSequentialScan, PhysicalOneRow, PhysicalFilter,
-                 PhysicalNestedLoopJoin, PhysicalInMemorySort,
-                 PhysicalProjection, PhysicalGlobalAggregate,
-                 PhysicalHashAggregate, PhysicalHashDistinct,
-                 PhysicalLimit>;
+    std::variant<PhysicalSequentialScan, PhysicalIndexScan, PhysicalOneRow,
+                 PhysicalFilter, PhysicalNestedLoopJoin,
+                 PhysicalInMemorySort, PhysicalProjection,
+                 PhysicalGlobalAggregate, PhysicalHashAggregate,
+                 PhysicalHashDistinct, PhysicalLimit>;
 
 struct PhysicalPlan {
     PhysicalPlanNode node;

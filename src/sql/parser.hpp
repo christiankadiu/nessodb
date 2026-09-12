@@ -28,6 +28,7 @@ enum class ParseErrorCode {
     expected_left_parenthesis,
     expected_right_parenthesis,
     expected_column_type,
+    expected_key,
     expected_comma_or_right_parenthesis,
     expected_insert,
     expected_delete,

@@ -18,6 +18,7 @@ enum class BindErrorCode {
     invalid_string_literal,
     integer_out_of_range,
     duplicate_column,
+    multiple_primary_keys,
     table_not_found,
     column_requires_table,
     column_not_found,

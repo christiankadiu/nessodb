@@ -581,6 +581,39 @@ std::string_view column_name_at(
         "bound column index does not belong to a table scope"};
 }
 
+std::optional<BoundPrimaryKeyLookup> find_primary_key_lookup(
+    const BoundExpression& expression,
+    const catalog::TableSchema& table) {
+    const auto* comparison =
+        std::get_if<BoundComparisonExpression>(&expression.node);
+    if (comparison == nullptr ||
+        comparison->comparison != BoundComparisonOperator::equal) {
+        return std::nullopt;
+    }
+
+    const auto match = [&table](const BoundExpression& column_expression,
+                                const BoundExpression& literal_expression)
+        -> std::optional<BoundPrimaryKeyLookup> {
+        const auto* column = std::get_if<BoundColumnReferenceExpression>(
+            &column_expression.node);
+        const auto* literal = std::get_if<BoundLiteralExpression>(
+            &literal_expression.node);
+        if (column == nullptr || literal == nullptr ||
+            column->column_index >= table.columns.size() ||
+            !table.columns[column->column_index].primary_key ||
+            std::holds_alternative<types::NullValue>(literal->value)) {
+            return std::nullopt;
+        }
+        return BoundPrimaryKeyLookup{
+            column->column_index, literal->value};
+    };
+
+    if (auto lookup = match(*comparison->left, *comparison->right)) {
+        return lookup;
+    }
+    return match(*comparison->right, *comparison->left);
+}
+
 }  // namespace
 
 std::expected<BoundSelectStatement, BindError> bind_select_statement(
@@ -832,6 +865,10 @@ std::expected<BoundSelectStatement, BindError> bind_select_statement(
                 expression_location(*statement.where)});
         }
         bound_statement.where = std::move(*expression);
+        if (statement.joins.empty()) {
+            bound_statement.primary_key_lookup = find_primary_key_lookup(
+                *bound_statement.where, *table);
+        }
     }
 
     if (!statement.order_by.empty() && table == nullptr) {
@@ -899,6 +936,7 @@ std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
     BoundCreateTableStatement bound_statement{
         std::string{statement.table_name}, statement.table_location, {}};
     bound_statement.columns.reserve(statement.columns.size());
+    bool has_primary_key = false;
 
     for (const auto& column : statement.columns) {
         for (const auto& existing_column : bound_statement.columns) {
@@ -907,12 +945,18 @@ std::expected<BoundCreateTableStatement, BindError> bind_create_table_statement(
                     BindError{BindErrorCode::duplicate_column, column.location});
             }
         }
+        if (column.primary_key && has_primary_key) {
+            return std::unexpected(BindError{
+                BindErrorCode::multiple_primary_keys, column.location});
+        }
+        has_primary_key = has_primary_key || column.primary_key;
 
         const types::LogicalType type = column.type == sql::ColumnType::integer
                                             ? types::LogicalType::integer
                                             : types::LogicalType::text;
         bound_statement.columns.push_back(
-            BoundColumnDefinition{std::string{column.name}, type, column.location});
+            BoundColumnDefinition{std::string{column.name}, type,
+                                  column.location, column.primary_key});
     }
 
     return bound_statement;

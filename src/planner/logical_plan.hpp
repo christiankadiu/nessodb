@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -15,6 +16,7 @@ using LogicalPlanPtr = std::unique_ptr<LogicalPlan>;
 
 struct LogicalTableScan {
     common::TableId table_id;
+    std::optional<binder::BoundPrimaryKeyLookup> primary_key_lookup;
 };
 
 struct LogicalOneRow {};

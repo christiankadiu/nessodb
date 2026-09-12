@@ -17,11 +17,13 @@ LogicalPlanPtr make_plan(Node node) {
 
 LogicalPlanPtr plan_select(binder::BoundSelectStatement statement) {
     LogicalPlanPtr plan = statement.table_id.is_valid()
-                              ? make_plan(LogicalTableScan{statement.table_id})
+                              ? make_plan(LogicalTableScan{
+                                    statement.table_id,
+                                    std::move(statement.primary_key_lookup)})
                               : make_plan(LogicalOneRow{});
 
     for (auto& join : statement.joins) {
-        auto right = make_plan(LogicalTableScan{join.table_id});
+        auto right = make_plan(LogicalTableScan{join.table_id, std::nullopt});
         plan = make_plan(LogicalNestedLoopJoin{
             std::move(join.condition), std::move(plan),
             std::move(right)});
