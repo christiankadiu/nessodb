@@ -173,6 +173,27 @@ std::expected<void, PageFileError> PageFile::flush() {
     return {};
 }
 
+std::expected<void, PageFileError> PageFile::truncate_pages(
+    std::uint64_t page_count) {
+    if (page_count >
+        std::numeric_limits<std::uintmax_t>::max() / page_size) {
+        return std::unexpected(PageFileError::page_offset_out_of_range);
+    }
+    stream_.close();
+    std::error_code error;
+    std::filesystem::resize_file(
+        path_, static_cast<std::uintmax_t>(page_count) * page_size,
+        error);
+    if (error) {
+        return std::unexpected(PageFileError::resize_failed);
+    }
+    stream_.open(path_, std::ios::binary | std::ios::in | std::ios::out);
+    if (!stream_.is_open()) {
+        return std::unexpected(PageFileError::open_failed);
+    }
+    return {};
+}
+
 std::expected<std::streamoff, PageFileError> PageFile::file_size() {
     stream_.clear();
     stream_.seekg(0, std::ios::end);
