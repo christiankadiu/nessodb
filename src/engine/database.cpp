@@ -7,6 +7,7 @@
 #include "planner/physical_plan_formatter.hpp"
 #include "planner/physical_planner.hpp"
 #include "sql/parser.hpp"
+#include "storage/io/page_file.hpp"
 
 #include <span>
 #include <stdexcept>
@@ -106,10 +107,31 @@ std::expected<QueryResult, QueryError> transaction_control_result(
     return QueryResult{};
 }
 
+std::expected<recovery::WriteAheadLog, DatabaseOpenError>
+open_wal_and_recover(const std::filesystem::path& path) {
+    auto page_file = storage::PageFile::open(path);
+    if (!page_file) {
+        return std::unexpected(DatabaseOpenError{
+            storage::StorageManagerError{
+                storage::DatabaseFileError{page_file.error()}}});
+    }
+    auto wal = recovery::WriteAheadLog::open(path);
+    if (!wal) {
+        return std::unexpected(DatabaseOpenError{wal.error()});
+    }
+    auto recovered = wal->recover(*page_file);
+    if (!recovered) {
+        return std::unexpected(DatabaseOpenError{recovered.error()});
+    }
+    return std::move(*wal);
+}
+
 }  // namespace
 
-Database::Database(catalog::Catalog catalog, storage::StorageManager storage)
-    : catalog_(std::move(catalog)), storage_(std::move(storage)) {}
+Database::Database(catalog::Catalog catalog, storage::StorageManager storage,
+                   recovery::WriteAheadLog wal)
+    : catalog_(std::move(catalog)), wal_(std::move(wal)),
+      storage_(std::move(storage)) {}
 
 std::expected<Database, DatabaseOpenError> Database::create(
     const std::filesystem::path& path) {
@@ -117,11 +139,21 @@ std::expected<Database, DatabaseOpenError> Database::create(
     if (!storage) {
         return std::unexpected(DatabaseOpenError{std::move(storage.error())});
     }
-    return Database{catalog::Catalog{}, std::move(*storage)};
+    auto wal = recovery::WriteAheadLog::create(path);
+    if (!wal) {
+        return std::unexpected(DatabaseOpenError{wal.error()});
+    }
+    return Database{
+        catalog::Catalog{}, std::move(*storage), std::move(*wal)};
 }
 
 std::expected<Database, DatabaseOpenError> Database::open(
     const std::filesystem::path& path) {
+    auto wal = open_wal_and_recover(path);
+    if (!wal) {
+        return std::unexpected(DatabaseOpenError{wal.error()});
+    }
+
     auto storage = storage::StorageManager::open(path);
     if (!storage) {
         return std::unexpected(DatabaseOpenError{std::move(storage.error())});
@@ -134,7 +166,8 @@ std::expected<Database, DatabaseOpenError> Database::open(
             return std::unexpected(DatabaseOpenError{restored.error()});
         }
     }
-    return Database{std::move(catalog), std::move(*storage)};
+    return Database{
+        std::move(catalog), std::move(*storage), std::move(*wal)};
 }
 
 std::expected<QueryResult, QueryError> Database::execute(std::string_view source) {
