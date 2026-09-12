@@ -91,6 +91,8 @@ private:
         std::span<const std::byte> key, bool right_bias) const;
     [[nodiscard]] std::expected<LeafLocation, BTreeError>
     locate_leftmost_leaf() const;
+    [[nodiscard]] std::expected<void, BTreeError> rebalance_leaf_after_erase(
+        LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
         LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_leaf_recursively(

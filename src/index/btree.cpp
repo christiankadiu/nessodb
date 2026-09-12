@@ -634,18 +634,7 @@ std::expected<void, BTreeError> BTree::erase(
             }
 
             leaf.entries.erase(entry);
-            storage::PageBuffer encoded{};
-            auto encoded_leaf = encode_leaf_page(encoded, leaf);
-            if (!encoded_leaf) {
-                return std::unexpected(BTreeError{encoded_leaf.error()});
-            }
-            auto writable =
-                buffer_pool_.fetch_index_page_for_write(current_page_id);
-            if (!writable) {
-                return std::unexpected(BTreeError{writable.error()});
-            }
-            **writable = std::move(encoded);
-            return {};
+            return rebalance_leaf_after_erase(std::move(leaf));
         }
 
         if (!leaf.next_page_id) {
@@ -654,6 +643,192 @@ std::expected<void, BTreeError> BTree::erase(
         }
         current_page_id = *leaf.next_page_id;
     }
+}
+
+std::expected<void, BTreeError> BTree::rebalance_leaf_after_erase(
+    LeafPage leaf) {
+    const auto write_leaf = [this](const LeafPage& page)
+        -> std::expected<void, BTreeError> {
+        std::vector<PageUpdate> updates;
+        if (auto added = add_page_update(updates, page); !added) {
+            return std::unexpected(added.error());
+        }
+        return write_page_updates(buffer_pool_, std::move(updates));
+    };
+
+    if (!leaf.parent_page_id) {
+        if (leaf.page_id != root_page_id_ || leaf.next_page_id) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        return write_leaf(leaf);
+    }
+
+    InternalPage parent;
+    {
+        auto page = buffer_pool_.fetch_index_page(*leaf.parent_page_id);
+        if (!page) {
+            return std::unexpected(BTreeError{page.error()});
+        }
+        auto decoded = decode_internal_page(**page);
+        if (!decoded) {
+            return std::unexpected(BTreeError{decoded.error()});
+        }
+        if (decoded->level != 1) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        parent = std::move(*decoded);
+    }
+
+    std::size_t child_index = 0;
+    if (parent.leftmost_child != leaf.page_id) {
+        const auto child = std::find_if(
+            parent.entries.begin(), parent.entries.end(),
+            [&leaf](const InternalEntry& entry) {
+                return entry.right_child == leaf.page_id;
+            });
+        if (child == parent.entries.end()) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        child_index = static_cast<std::size_t>(
+                          std::distance(parent.entries.begin(), child)) +
+                      1;
+    }
+
+    const auto leaf_size = leaf_entries_size(leaf.entries);
+    if (!leaf_size) {
+        return std::unexpected(BTreeError{IndexPageError::page_full});
+    }
+    if (*leaf_size >= storage::page_size / 2) {
+        std::vector<PageUpdate> updates;
+        if (child_index != 0 && !leaf.entries.empty()) {
+            parent.entries[child_index - 1].key = leaf.entries.front().key;
+            if (auto added = add_page_update(updates, parent); !added) {
+                return std::unexpected(added.error());
+            }
+        }
+        if (auto added = add_page_update(updates, leaf); !added) {
+            return std::unexpected(added.error());
+        }
+        return write_page_updates(buffer_pool_, std::move(updates));
+    }
+
+    if (parent.entries.empty()) {
+        if (parent.page_id != root_page_id_) {
+            return write_leaf(leaf);
+        }
+        leaf.parent_page_id.reset();
+        auto written = write_leaf(leaf);
+        if (!written) {
+            return std::unexpected(written.error());
+        }
+        root_page_id_ = leaf.page_id;
+        return {};
+    }
+
+    const std::size_t sibling_index =
+        child_index == 0 ? 1 : child_index - 1;
+    const common::PageId sibling_page_id =
+        sibling_index == 0
+            ? parent.leftmost_child
+            : parent.entries[sibling_index - 1].right_child;
+    LeafPage sibling;
+    {
+        auto page = buffer_pool_.fetch_index_page(sibling_page_id);
+        if (!page) {
+            return std::unexpected(BTreeError{page.error()});
+        }
+        auto decoded = decode_leaf_page(**page);
+        if (!decoded) {
+            return std::unexpected(BTreeError{decoded.error()});
+        }
+        if (decoded->parent_page_id != parent.page_id) {
+            return std::unexpected(
+                BTreeError{BTreeErrorCode::invalid_tree_structure});
+        }
+        sibling = std::move(*decoded);
+    }
+
+    LeafPage left = sibling_index < child_index ? std::move(sibling)
+                                                : std::move(leaf);
+    LeafPage right = sibling_index < child_index ? std::move(leaf)
+                                                 : std::move(sibling);
+    if (left.next_page_id != right.page_id) {
+        return std::unexpected(
+            BTreeError{BTreeErrorCode::invalid_tree_structure});
+    }
+
+    std::vector<LeafEntry> combined;
+    combined.reserve(left.entries.size() + right.entries.size());
+    combined.insert(combined.end(),
+                    std::make_move_iterator(left.entries.begin()),
+                    std::make_move_iterator(left.entries.end()));
+    combined.insert(combined.end(),
+                    std::make_move_iterator(right.entries.begin()),
+                    std::make_move_iterator(right.entries.end()));
+    std::sort(combined.begin(), combined.end(), entry_less);
+
+    const std::size_t separator_index =
+        sibling_index < child_index ? child_index - 1 : child_index;
+    const auto combined_size = leaf_entries_size(combined);
+    if (combined_size && *combined_size <= storage::page_size) {
+        left.entries = std::move(combined);
+        left.next_page_id = right.next_page_id;
+        parent.entries.erase(
+            parent.entries.begin() +
+            static_cast<std::ptrdiff_t>(separator_index));
+
+        std::vector<PageUpdate> updates;
+        if (parent.page_id == root_page_id_ && parent.entries.empty()) {
+            left.parent_page_id.reset();
+            if (auto added = add_page_update(updates, left); !added) {
+                return std::unexpected(added.error());
+            }
+            auto written =
+                write_page_updates(buffer_pool_, std::move(updates));
+            if (!written) {
+                return std::unexpected(written.error());
+            }
+            root_page_id_ = left.page_id;
+            return {};
+        }
+
+        if (auto added = add_page_update(updates, left); !added) {
+            return std::unexpected(added.error());
+        }
+        if (auto added = add_page_update(updates, parent); !added) {
+            return std::unexpected(added.error());
+        }
+        return write_page_updates(buffer_pool_, std::move(updates));
+    }
+
+    const auto split = choose_leaf_split(combined);
+    if (!split) {
+        return std::unexpected(BTreeError{IndexPageError::page_full});
+    }
+    left.entries.assign(
+        std::make_move_iterator(combined.begin()),
+        std::make_move_iterator(
+            combined.begin() + static_cast<std::ptrdiff_t>(*split)));
+    right.entries.assign(
+        std::make_move_iterator(
+            combined.begin() + static_cast<std::ptrdiff_t>(*split)),
+        std::make_move_iterator(combined.end()));
+    parent.entries[separator_index].key = right.entries.front().key;
+
+    std::vector<PageUpdate> updates;
+    if (auto added = add_page_update(updates, left); !added) {
+        return std::unexpected(added.error());
+    }
+    if (auto added = add_page_update(updates, right); !added) {
+        return std::unexpected(added.error());
+    }
+    if (auto added = add_page_update(updates, parent); !added) {
+        return std::unexpected(added.error());
+    }
+    return write_page_updates(buffer_pool_, std::move(updates));
 }
 
 std::expected<void, BTreeError> BTree::insert(
