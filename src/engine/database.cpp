@@ -254,6 +254,12 @@ std::expected<void, QueryError> Database::commit_transaction() {
             TransactionExecutionErrorCode::no_active_transaction}});
     }
 
+    if (wal_) {
+        auto logged = wal_->commit(active_transaction_->handle->id());
+        if (!logged) {
+            return std::unexpected(QueryError{RecoveryError{logged.error()}});
+        }
+    }
     auto committed = transaction_manager_->commit(active_transaction_->handle);
     if (!committed) {
         return std::unexpected(QueryError{TransactionExecutionError{
@@ -272,6 +278,12 @@ std::expected<void, QueryError> Database::rollback_transaction() {
     auto undone = rollback_to(0);
     if (!undone) {
         return std::unexpected(undone.error());
+    }
+    if (wal_) {
+        auto logged = wal_->abort(active_transaction_->handle->id());
+        if (!logged) {
+            return std::unexpected(QueryError{RecoveryError{logged.error()}});
+        }
     }
     auto rolled_back =
         transaction_manager_->rollback(active_transaction_->handle);
@@ -298,8 +310,20 @@ std::expected<void, QueryError> Database::start_transaction(
         return std::unexpected(QueryError{TransactionExecutionError{
             TransactionExecutionErrorCode::transaction_state_error}});
     }
-    active_transaction_.emplace(
-        ActiveTransaction{*started, storage::UndoLog{}, explicit_transaction});
+    if (wal_) {
+        auto* persistent = std::get_if<storage::StorageManager>(&storage_);
+        if (persistent == nullptr) {
+            throw std::logic_error{
+                "persistent WAL requires persistent storage"};
+        }
+        auto logged = wal_->begin((*started)->id(), persistent->page_count());
+        if (!logged) {
+            (void)transaction_manager_->rollback(*started);
+            return std::unexpected(QueryError{RecoveryError{logged.error()}});
+        }
+    }
+    active_transaction_.emplace(ActiveTransaction{
+        std::move(*started), storage::UndoLog{}, explicit_transaction});
     return {};
 }
 

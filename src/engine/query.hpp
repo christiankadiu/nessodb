@@ -1,6 +1,7 @@
 #pragma once
 
 #include "binder/binder.hpp"
+#include "recovery/wal.hpp"
 #include "sql/parser.hpp"
 #include "storage/storage_manager.hpp"
 #include "types/value.hpp"
@@ -41,6 +42,10 @@ struct StorageError {
     storage::StorageManagerError cause;
 };
 
+struct RecoveryError {
+    recovery::WalError cause;
+};
+
 enum class TransactionExecutionErrorCode {
     transaction_already_active,
     no_active_transaction,
@@ -56,7 +61,7 @@ struct TransactionExecutionError {
 
 using QueryError =
     std::variant<sql::ParseError, binder::BindError, ExecutionError, StorageError,
-                 TransactionExecutionError>;
+                 RecoveryError, TransactionExecutionError>;
 
 [[nodiscard]] std::expected<QueryResult, QueryError> execute_query(std::string_view source);
 

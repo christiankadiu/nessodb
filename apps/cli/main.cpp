@@ -44,6 +44,10 @@ void print_error(const minidb::engine::QueryError& error) {
                                      minidb::engine::TransactionExecutionError>) {
                 std::cerr << "Transaction error: "
                           << transaction_error_message(detail.code) << '\n';
+            } else if constexpr (std::is_same_v<
+                                     Detail,
+                                     minidb::engine::RecoveryError>) {
+                std::cerr << "Recovery error\n";
             } else {
                 std::cerr << "Storage error\n";
             }
