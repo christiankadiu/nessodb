@@ -93,6 +93,12 @@ private:
     locate_leftmost_leaf() const;
     [[nodiscard]] std::expected<void, BTreeError> rebalance_leaf_after_erase(
         LeafPage leaf);
+    [[nodiscard]] std::expected<void, BTreeError>
+    rebalance_internal_after_erase(InternalPage page);
+    [[nodiscard]] std::expected<void, BTreeError> reparent_child(
+        common::PageId child_page_id, std::uint16_t child_level,
+        common::PageId old_parent_page_id,
+        std::optional<common::PageId> new_parent_page_id);
     [[nodiscard]] std::expected<void, BTreeError> split_root_leaf(
         LeafPage leaf);
     [[nodiscard]] std::expected<void, BTreeError> split_leaf_recursively(
