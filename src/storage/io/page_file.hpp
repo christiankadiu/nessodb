@@ -24,6 +24,7 @@ enum class PageFileError {
     seek_failed,
     read_failed,
     write_failed,
+    resize_failed,
 };
 
 class PageFile {
@@ -47,6 +48,8 @@ public:
     [[nodiscard]] std::expected<void, PageFileError> write_page(
         common::PageId page_id, const PageBuffer& page);
     [[nodiscard]] std::expected<void, PageFileError> flush();
+    [[nodiscard]] std::expected<void, PageFileError> truncate_pages(
+        std::uint64_t page_count);
 
 private:
     PageFile(std::filesystem::path path, std::fstream stream);

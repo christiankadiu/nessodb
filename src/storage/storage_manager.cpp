@@ -205,6 +205,10 @@ std::size_t StorageManager::buffer_pool_capacity() const noexcept {
     return state_->buffer_pool.capacity();
 }
 
+std::uint64_t StorageManager::page_count() const noexcept {
+    return state_->database_file.header().page_count;
+}
+
 std::span<const StoredTableMetadata> StorageManager::tables() const noexcept {
     return state_->tables;
 }

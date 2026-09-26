@@ -10,6 +10,7 @@
 #include "types/value.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -52,6 +53,7 @@ public:
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] std::size_t buffer_pool_capacity() const noexcept;
+    [[nodiscard]] std::uint64_t page_count() const noexcept;
     [[nodiscard]] std::span<const StoredTableMetadata> tables() const noexcept;
     [[nodiscard]] std::expected<StoredTableMetadata, StorageManagerError>
     create_table(catalog::TableSchema schema);

@@ -2,6 +2,7 @@
 
 #include "catalog/catalog.hpp"
 #include "engine/query.hpp"
+#include "recovery/wal.hpp"
 #include "sql/ast.hpp"
 #include "storage/access/in_memory_heap.hpp"
 #include "storage/storage_manager.hpp"
@@ -18,7 +19,8 @@
 namespace minidb::engine {
 
 using DatabaseOpenError =
-    std::variant<storage::StorageManagerError, catalog::CatalogError>;
+    std::variant<storage::StorageManagerError, catalog::CatalogError,
+                 recovery::WalError>;
 
 class Database {
 public:
@@ -42,7 +44,8 @@ private:
         bool explicit_transaction{};
     };
 
-    Database(catalog::Catalog catalog, storage::StorageManager storage);
+    Database(catalog::Catalog catalog, storage::StorageManager storage,
+             recovery::WriteAheadLog wal);
 
     [[nodiscard]] std::expected<void, QueryError> start_transaction(
         bool explicit_transaction);
@@ -66,6 +69,7 @@ private:
         const sql::UpdateStatement& statement, ActiveTransaction& transaction);
 
     catalog::Catalog catalog_;
+    std::optional<recovery::WriteAheadLog> wal_;
     std::variant<storage::InMemoryHeap, storage::StorageManager> storage_;
     std::unique_ptr<transaction::TransactionManager> transaction_manager_{
         std::make_unique<transaction::TransactionManager>()};
