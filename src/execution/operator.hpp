@@ -8,7 +8,7 @@
 #include <optional>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 inline constexpr std::size_t default_batch_size = 1024;
 
@@ -38,4 +38,4 @@ public:
     [[nodiscard]] virtual OperatorResult next() = 0;
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

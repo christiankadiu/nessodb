@@ -13,7 +13,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::engine {
+namespace nessodb::engine {
 
 struct ResultRow {
     std::vector<types::Value> values;
@@ -65,4 +65,4 @@ using QueryError =
 
 [[nodiscard]] std::expected<QueryResult, QueryError> execute_query(std::string_view source);
 
-}  // namespace minidb::engine
+}  // namespace nessodb::engine

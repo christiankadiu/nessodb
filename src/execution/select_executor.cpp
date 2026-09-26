@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 std::expected<std::vector<storage::Row>, OperatorError> collect_rows(
@@ -58,4 +58,4 @@ execute_select_from_tables(
     return collect_rows(std::move(source), reserve);
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

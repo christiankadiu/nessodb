@@ -6,7 +6,7 @@
 #include <memory>
 #include <optional>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 class FilterOperator final : public RowOperator {
 public:
@@ -20,4 +20,4 @@ private:
     binder::BoundExpression predicate_;
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

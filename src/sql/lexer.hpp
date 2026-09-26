@@ -5,7 +5,7 @@
 #include <expected>
 #include <string_view>
 
-namespace minidb::sql {
+namespace nessodb::sql {
 
 enum class LexErrorCode {
     invalid_character,
@@ -41,4 +41,4 @@ private:
     std::size_t column_{1};
 };
 
-}  // namespace minidb::sql
+}  // namespace nessodb::sql

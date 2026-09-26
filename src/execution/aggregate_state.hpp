@@ -9,7 +9,7 @@
 #include <optional>
 #include <span>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 enum class AggregateErrorCode {
     invalid_argument_count,
@@ -98,4 +98,4 @@ private:
     std::optional<std::int64_t> sum_;
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

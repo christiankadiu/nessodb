@@ -7,7 +7,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 const types::Value& require_value(const ExpressionResult& result) {
@@ -333,4 +333,4 @@ ExpressionEvaluation evaluate_expression(
     throw std::logic_error{"unknown bound logical operator"};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

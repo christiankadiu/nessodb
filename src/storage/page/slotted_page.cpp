@@ -7,7 +7,7 @@
 #include <bitset>
 #include <limits>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 inline constexpr std::size_t slot_count_offset = page_header_size;
@@ -352,4 +352,4 @@ std::expected<void, SlottedPageError> SlottedPage::restore(
 SlottedPage::SlottedPage(std::span<std::byte> page, PageHeader header) noexcept
     : page_(page), header_(header) {}
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

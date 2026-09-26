@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 FilterOperator::FilterOperator(std::unique_ptr<RowOperator> child,
                                binder::BoundExpression predicate)
@@ -58,4 +58,4 @@ OperatorResult FilterOperator::next() {
     }
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

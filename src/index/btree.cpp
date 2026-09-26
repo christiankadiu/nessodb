@@ -10,7 +10,7 @@
 #include <unordered_set>
 #include <utility>
 
-namespace minidb::index {
+namespace nessodb::index {
 namespace {
 
 std::expected<void, IndexPageError> validate_key(
@@ -1562,4 +1562,4 @@ std::expected<void, BTreeError> BTree::split_leaf_recursively(
     return {};
 }
 
-}  // namespace minidb::index
+}  // namespace nessodb::index

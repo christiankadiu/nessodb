@@ -8,7 +8,7 @@
 #include <expected>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 [[nodiscard]] std::expected<std::vector<storage::Row>, OperatorError> execute_select(
     binder::BoundSelectStatement statement,
@@ -18,4 +18,4 @@ namespace minidb::execution {
 execute_select_from_tables(binder::BoundSelectStatement statement,
                            std::vector<TableInput> table_inputs);
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

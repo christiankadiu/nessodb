@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <fstream>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class PageFileError {
     empty_path,
@@ -60,4 +60,4 @@ private:
     std::fstream stream_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

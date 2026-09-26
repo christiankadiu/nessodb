@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace minidb::index {
+namespace nessodb::index {
 
 inline constexpr std::uint8_t key_format_version = 1;
 
@@ -32,4 +32,4 @@ decode_key(std::span<const std::byte> key);
     std::span<const std::byte> left,
     std::span<const std::byte> right) noexcept;
 
-}  // namespace minidb::index
+}  // namespace nessodb::index

@@ -7,7 +7,7 @@
 #include <expected>
 #include <span>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 inline constexpr std::uint32_t page_magic = 0x5042444d;
 inline constexpr std::uint16_t page_format_version = 1;
@@ -44,4 +44,4 @@ enum class PageHeaderError {
 [[nodiscard]] std::expected<PageHeader, PageHeaderError> decode_page_header(
     std::span<const std::byte> source) noexcept;
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

@@ -6,7 +6,7 @@
 #include <optional>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 class VectorScanOperator final : public RowOperator {
 public:
@@ -22,4 +22,4 @@ private:
     std::size_t offset_{};
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

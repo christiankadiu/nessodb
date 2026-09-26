@@ -3,7 +3,7 @@
 #include <limits>
 #include <utility>
 
-namespace minidb::transaction {
+namespace nessodb::transaction {
 
 TransactionManager::~TransactionManager() {
     const std::scoped_lock lock{mutex_};
@@ -113,4 +113,4 @@ TransactionManager::find_active(
     return entry->second;
 }
 
-}  // namespace minidb::transaction
+}  // namespace nessodb::transaction

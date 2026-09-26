@@ -9,7 +9,7 @@
 #include <limits>
 #include <utility>
 
-namespace minidb::index {
+namespace nessodb::index {
 namespace {
 
 constexpr std::size_t version_offset = storage::page_header_size;
@@ -503,4 +503,4 @@ std::expected<InternalPage, IndexPageError> decode_internal_page(
     return page;
 }
 
-}  // namespace minidb::index
+}  // namespace nessodb::index

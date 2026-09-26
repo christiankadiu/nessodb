@@ -7,7 +7,7 @@
 #include <optional>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 class ProjectionOperator final : public RowOperator {
 public:
@@ -22,4 +22,4 @@ private:
     std::vector<binder::BoundExpression> expressions_;
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

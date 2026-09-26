@@ -12,7 +12,7 @@
 #include <unordered_map>
 #include <variant>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class BufferPoolErrorCode {
     capacity_exceeded,
@@ -77,4 +77,4 @@ private:
     std::unordered_map<std::uint64_t, Frame> pages_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

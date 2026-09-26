@@ -5,7 +5,7 @@
 #include <string>
 #include <variant>
 
-namespace minidb::index {
+namespace nessodb::index {
 namespace {
 
 constexpr std::byte integer_tag{0x10};
@@ -141,4 +141,4 @@ std::strong_ordering compare_encoded_keys(
     return left.size() <=> right.size();
 }
 
-}  // namespace minidb::index
+}  // namespace nessodb::index

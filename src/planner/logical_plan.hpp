@@ -9,7 +9,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::planner {
+namespace nessodb::planner {
 
 struct LogicalPlan;
 using LogicalPlanPtr = std::unique_ptr<LogicalPlan>;
@@ -67,4 +67,4 @@ struct LogicalPlan {
     LogicalPlanNode node;
 };
 
-}  // namespace minidb::planner
+}  // namespace nessodb::planner

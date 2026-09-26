@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 inline constexpr std::uint16_t record_format_version = 1;
 inline constexpr std::size_t record_header_size = 8;
@@ -38,4 +38,4 @@ enum class RecordDecodeError {
 [[nodiscard]] std::expected<Row, RecordDecodeError> decode_record(
     std::span<const std::byte> record, const catalog::TableSchema& schema);
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

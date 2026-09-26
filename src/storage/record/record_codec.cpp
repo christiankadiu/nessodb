@@ -10,7 +10,7 @@
 #include <string>
 #include <variant>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 constexpr std::size_t null_bitmap_size(std::size_t column_count) noexcept {
@@ -190,4 +190,4 @@ std::expected<Row, RecordDecodeError> decode_record(
     return row;
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

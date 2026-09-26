@@ -7,7 +7,7 @@
 #include <span>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 using ExpressionResult = std::variant<types::Value, bool>;
 
@@ -28,4 +28,4 @@ using ExpressionEvaluation =
     std::span<const types::Value> input,
     const binder::BoundExpression& expression);
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

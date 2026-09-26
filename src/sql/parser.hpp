@@ -7,7 +7,7 @@
 #include <optional>
 #include <string_view>
 
-namespace minidb::sql {
+namespace nessodb::sql {
 
 enum class ParseErrorCode {
     lexical_error,
@@ -108,4 +108,4 @@ private:
     std::optional<Token> lookahead_;
 };
 
-}  // namespace minidb::sql
+}  // namespace nessodb::sql

@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 struct TableInput {
     common::TableId table_id;
@@ -23,4 +23,4 @@ struct TableInput {
     planner::PhysicalPlanPtr plan,
     std::vector<TableInput> table_inputs);
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

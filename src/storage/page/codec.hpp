@@ -6,7 +6,7 @@
 #include <expected>
 #include <span>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class CodecError {
     out_of_bounds,
@@ -75,4 +75,4 @@ template <std::unsigned_integral Integer>
     return detail::write_little_endian(destination, offset, value);
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

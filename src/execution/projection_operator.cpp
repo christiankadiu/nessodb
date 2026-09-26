@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 ProjectionOperator::ProjectionOperator(
     std::unique_ptr<RowOperator> child,
@@ -64,4 +64,4 @@ OperatorResult ProjectionOperator::next() {
     return std::optional<RowBatch>{std::move(output)};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

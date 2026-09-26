@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::sql {
+namespace nessodb::sql {
 
 enum class LiteralType {
     integer,
@@ -244,4 +244,4 @@ using Statement =
                  InsertStatement, DeleteStatement, UpdateStatement,
                  BeginStatement, CommitStatement, RollbackStatement>;
 
-}  // namespace minidb::sql
+}  // namespace nessodb::sql

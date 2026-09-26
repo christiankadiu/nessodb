@@ -13,8 +13,8 @@
 namespace {
 
 std::string_view transaction_error_message(
-    minidb::engine::TransactionExecutionErrorCode code) noexcept {
-    using Code = minidb::engine::TransactionExecutionErrorCode;
+    nessodb::engine::TransactionExecutionErrorCode code) noexcept {
+    using Code = nessodb::engine::TransactionExecutionErrorCode;
     switch (code) {
         case Code::transaction_already_active:
             return "transaction already active";
@@ -32,7 +32,7 @@ std::string_view transaction_error_message(
     return "unknown transaction error";
 }
 
-void print_error(const minidb::engine::QueryError& error) {
+void print_error(const nessodb::engine::QueryError& error) {
     std::visit(
         [](const auto& detail) {
             using Detail = std::remove_cvref_t<decltype(detail)>;
@@ -41,12 +41,12 @@ void print_error(const minidb::engine::QueryError& error) {
                           << detail.location.column << '\n';
             } else if constexpr (std::is_same_v<
                                      Detail,
-                                     minidb::engine::TransactionExecutionError>) {
+                                     nessodb::engine::TransactionExecutionError>) {
                 std::cerr << "Transaction error: "
                           << transaction_error_message(detail.code) << '\n';
             } else if constexpr (std::is_same_v<
                                      Detail,
-                                     minidb::engine::RecoveryError>) {
+                                     nessodb::engine::RecoveryError>) {
                 std::cerr << "Recovery error\n";
             } else {
                 std::cerr << "Storage error\n";
@@ -55,19 +55,19 @@ void print_error(const minidb::engine::QueryError& error) {
         error);
 }
 
-void print_error(const minidb::engine::DatabaseOpenError& error) {
-    if (std::holds_alternative<minidb::catalog::CatalogError>(error)) {
+void print_error(const nessodb::engine::DatabaseOpenError& error) {
+    if (std::holds_alternative<nessodb::catalog::CatalogError>(error)) {
         std::cerr << "Invalid database catalog\n";
     } else {
         std::cerr << "Cannot open database file\n";
     }
 }
 
-void print_value(const minidb::types::Value& value) {
+void print_value(const nessodb::types::Value& value) {
     std::visit(
         [](const auto& item) {
             using Item = std::remove_cvref_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, minidb::types::NullValue>) {
+            if constexpr (std::is_same_v<Item, nessodb::types::NullValue>) {
                 std::cout << "NULL";
             } else {
                 std::cout << item;
@@ -76,7 +76,7 @@ void print_value(const minidb::types::Value& value) {
         value);
 }
 
-void print_result(const minidb::engine::QueryResult& result) {
+void print_result(const nessodb::engine::QueryResult& result) {
     for (const auto& row : result.rows) {
         for (std::size_t index = 0; index < row.values.size(); ++index) {
             if (index != 0) {
@@ -92,13 +92,13 @@ void print_result(const minidb::engine::QueryResult& result) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: minidb <database-file> \"SQL statement\" "
+        std::cerr << "Usage: nessodb <database-file> \"SQL statement\" "
                      "[\"SQL statement\" ...]\n";
         return 2;
     }
 
     const std::filesystem::path path{argv[1]};
-    std::optional<minidb::engine::Database> database;
+    std::optional<nessodb::engine::Database> database;
     if (path == ":memory:") {
         database.emplace();
     } else {
@@ -109,8 +109,8 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        auto opened = exists ? minidb::engine::Database::open(path)
-                             : minidb::engine::Database::create(path);
+        auto opened = exists ? nessodb::engine::Database::open(path)
+                             : nessodb::engine::Database::create(path);
         if (!opened) {
             print_error(opened.error());
             return 1;

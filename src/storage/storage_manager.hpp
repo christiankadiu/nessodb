@@ -18,7 +18,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 inline constexpr std::size_t default_buffer_pool_capacity = 64;
 
@@ -81,4 +81,4 @@ private:
     std::unique_ptr<State> state_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

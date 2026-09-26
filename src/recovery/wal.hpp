@@ -13,7 +13,7 @@
 #include <optional>
 #include <span>
 
-namespace minidb::recovery {
+namespace nessodb::recovery {
 
 inline constexpr std::uint16_t wal_format_version = 1;
 
@@ -101,4 +101,4 @@ private:
 [[nodiscard]] std::filesystem::path wal_path_for(
     const std::filesystem::path& database_path);
 
-}  // namespace minidb::recovery
+}  // namespace nessodb::recovery

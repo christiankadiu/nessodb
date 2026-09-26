@@ -5,7 +5,7 @@
 #include <expected>
 #include <span>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class PageChecksumError {
     invalid_page_size,
@@ -19,4 +19,4 @@ enum class PageChecksumError {
 [[nodiscard]] std::expected<void, PageChecksumError> verify_page_checksum(
     std::span<const std::byte> page) noexcept;
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

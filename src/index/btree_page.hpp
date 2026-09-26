@@ -11,7 +11,7 @@
 #include <span>
 #include <vector>
 
-namespace minidb::index {
+namespace nessodb::index {
 
 inline constexpr std::uint16_t index_page_format_version = 1;
 inline constexpr std::size_t index_page_header_size = 64;
@@ -76,4 +76,4 @@ enum class IndexPageError {
 [[nodiscard]] std::expected<InternalPage, IndexPageError> decode_internal_page(
     std::span<const std::byte> source);
 
-}  // namespace minidb::index
+}  // namespace nessodb::index

@@ -5,7 +5,7 @@
 #include <system_error>
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 std::filesystem::file_status get_status(const std::filesystem::path& path,
@@ -207,4 +207,4 @@ std::expected<std::streamoff, PageFileError> PageFile::file_size() {
     return size;
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

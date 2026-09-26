@@ -7,7 +7,7 @@
 #include <limits>
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 inline constexpr std::int64_t table_entry_kind = 1;
@@ -68,7 +68,7 @@ bool null_field(const Row& row, std::size_t index) noexcept {
 
 const catalog::TableSchema& catalog_record_schema() {
     static const catalog::TableSchema schema{
-        "minidb_catalog",
+        "nessodb_catalog",
         {
             {"format_version", types::LogicalType::integer},
             {"entry_kind", types::LogicalType::integer},
@@ -264,4 +264,4 @@ std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
     return std::unexpected(CatalogRecordError::unknown_entry_kind);
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

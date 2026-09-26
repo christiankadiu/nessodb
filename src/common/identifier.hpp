@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-namespace minidb::common {
+namespace nessodb::common {
 
 [[nodiscard]] constexpr char ascii_lower(char character) noexcept {
     if (character >= 'A' && character <= 'Z') {
@@ -25,4 +25,4 @@ namespace minidb::common {
     return true;
 }
 
-}  // namespace minidb::common
+}  // namespace nessodb::common

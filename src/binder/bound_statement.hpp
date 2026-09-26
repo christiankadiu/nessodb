@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace minidb::binder {
+namespace nessodb::binder {
 
 enum class BoundOrderDirection {
     ascending,
@@ -95,4 +95,4 @@ struct BoundUpdateStatement {
     std::optional<BoundExpression> where;
 };
 
-}  // namespace minidb::binder
+}  // namespace nessodb::binder

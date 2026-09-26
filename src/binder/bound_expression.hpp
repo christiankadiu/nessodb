@@ -12,7 +12,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::binder {
+namespace nessodb::binder {
 
 struct BoundLiteralExpression {
     types::Value value;
@@ -159,4 +159,4 @@ public:
     BoundExpressionNode node;
 };
 
-}  // namespace minidb::binder
+}  // namespace nessodb::binder

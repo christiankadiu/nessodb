@@ -13,7 +13,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class TableHeapErrorCode {
     record_too_large,
@@ -60,4 +60,4 @@ private:
     common::PageId last_page_id_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

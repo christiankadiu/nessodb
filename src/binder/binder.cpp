@@ -16,7 +16,7 @@
 #include <system_error>
 #include <utility>
 
-namespace minidb::binder {
+namespace nessodb::binder {
 namespace {
 
 std::expected<types::Value, BindError> bind_integer(const sql::LiteralExpression& expression) {
@@ -1068,4 +1068,4 @@ std::expected<BoundUpdateStatement, BindError> bind_update_statement(
     return bound_statement;
 }
 
-}  // namespace minidb::binder
+}  // namespace nessodb::binder

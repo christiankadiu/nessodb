@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 LimitOperator::LimitOperator(
     std::unique_ptr<RowOperator> child,
@@ -54,4 +54,4 @@ OperatorResult LimitOperator::next() {
     return std::optional<RowBatch>{};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

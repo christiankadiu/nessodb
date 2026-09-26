@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 VectorScanOperator::VectorScanOperator(std::vector<storage::Row> rows,
                                        std::size_t batch_size)
@@ -30,4 +30,4 @@ OperatorResult VectorScanOperator::next() {
     return std::optional<RowBatch>{std::move(batch)};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

@@ -1,10 +1,10 @@
 #pragma once
 
-namespace minidb::types {
+namespace nessodb::types {
 
 enum class LogicalType {
     integer,
     text,
 };
 
-}  // namespace minidb::types
+}  // namespace nessodb::types

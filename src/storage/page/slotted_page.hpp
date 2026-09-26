@@ -10,7 +10,7 @@
 #include <optional>
 #include <span>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 inline constexpr std::uint16_t heap_page_format_version = 1;
 inline constexpr std::size_t heap_page_header_size = 48;
@@ -74,4 +74,4 @@ private:
     PageHeader header_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <memory>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 class LimitOperator final : public RowOperator {
 public:
@@ -24,4 +24,4 @@ private:
     std::size_t emitted_{0};
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

@@ -5,7 +5,7 @@
 
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 std::expected<PageBuffer, DatabaseFileError> make_header_page(
@@ -371,4 +371,4 @@ std::expected<void, DatabaseFileError> DatabaseFile::write_index_page(
     return write_page(page_id, page);
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

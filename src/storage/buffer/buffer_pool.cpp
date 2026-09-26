@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 BufferPool::BufferPool(DatabaseFile& database_file, std::size_t capacity)
     : database_file_(database_file), capacity_(capacity) {
@@ -229,4 +229,4 @@ std::expected<bool, DatabaseFileError> BufferPool::evict_page() {
     return false;
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

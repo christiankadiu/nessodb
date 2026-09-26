@@ -5,7 +5,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::planner {
+namespace nessodb::planner {
 namespace {
 
 template <typename Node>
@@ -99,4 +99,4 @@ PhysicalPlanPtr plan_physical(LogicalPlanPtr logical_plan) {
         logical_plan->node);
 }
 
-}  // namespace minidb::planner
+}  // namespace nessodb::planner

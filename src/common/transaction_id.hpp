@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace minidb::common {
+namespace nessodb::common {
 
 struct TransactionId {
     std::uint64_t value{};
@@ -14,4 +14,4 @@ struct TransactionId {
     friend bool operator==(const TransactionId&, const TransactionId&) = default;
 };
 
-}  // namespace minidb::common
+}  // namespace nessodb::common

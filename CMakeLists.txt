@@ -1,14 +1,30 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(
-    MiniDB
+    NessoDB
     DESCRIPTION "A relational database engine written in modern C++"
     LANGUAGES CXX
 )
 
-option(MINIDB_BUILD_TESTS "Build the MiniDB test suite" OFF)
+option(NESSODB_BUILD_TESTS "Build the NessoDB test suite" OFF)
 
-add_library(minidb
+function(nessodb_enable_warnings target)
+    set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
+
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(${target} PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Wconversion
+            -Wsign-conversion
+        )
+    endif()
+endfunction()
+
+add_library(nessodb
     src/binder/binder.cpp
     src/catalog/catalog.cpp
     src/engine/database.cpp
@@ -53,44 +69,26 @@ add_library(minidb
     src/transaction/transaction.cpp
     src/transaction/transaction_manager.cpp
 )
-add_library(MiniDB::minidb ALIAS minidb)
+add_library(NessoDB::nessodb ALIAS nessodb)
 
-target_compile_features(minidb PUBLIC cxx_std_23)
-target_include_directories(minidb
+target_compile_features(nessodb PUBLIC cxx_std_23)
+target_include_directories(nessodb
     PRIVATE
         ${PROJECT_SOURCE_DIR}/src
 )
-set_target_properties(minidb PROPERTIES
-    CXX_EXTENSIONS OFF
-)
+nessodb_enable_warnings(nessodb)
 
-if(MSVC)
-    target_compile_options(minidb PRIVATE /W4 /permissive-)
-else()
-    target_compile_options(minidb PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion)
-endif()
-
-add_executable(minidb_cli
+add_executable(nessodb_cli
     apps/cli/main.cpp
 )
-target_link_libraries(minidb_cli PRIVATE MiniDB::minidb)
-target_include_directories(minidb_cli PRIVATE
+target_link_libraries(nessodb_cli PRIVATE NessoDB::nessodb)
+target_include_directories(nessodb_cli PRIVATE
     ${PROJECT_SOURCE_DIR}/src
 )
-set_target_properties(minidb_cli PROPERTIES
-    CXX_EXTENSIONS OFF
-    OUTPUT_NAME minidb
-)
+set_target_properties(nessodb_cli PROPERTIES OUTPUT_NAME nessodb)
+nessodb_enable_warnings(nessodb_cli)
 
-if(MSVC)
-    target_compile_options(minidb_cli PRIVATE /W4 /permissive-)
-else()
-    target_compile_options(minidb_cli PRIVATE
-        -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
-    )
-endif()
-
-if(MINIDB_BUILD_TESTS)
+if(NESSODB_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)
 endif()

@@ -3,7 +3,7 @@
 #include <limits>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 CountAggregateState::CountAggregateState(CountMode mode) noexcept
     : mode_(mode) {}
@@ -149,4 +149,4 @@ types::Value SumAggregateState::finalize() const {
     return types::Value{*sum_};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

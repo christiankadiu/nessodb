@@ -4,7 +4,7 @@
 #include "storage/page/page.hpp"
 #include "storage/page/page_header.hpp"
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 inline constexpr std::uint32_t crc32c_polynomial = 0x82f63b78;
@@ -69,4 +69,4 @@ std::expected<void, PageChecksumError> verify_page_checksum(
     return {};
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

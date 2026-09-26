@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::planner {
+namespace nessodb::planner {
 namespace {
 
 template <typename... Visitors>
@@ -126,4 +126,4 @@ std::vector<std::string> format_physical_plan(const PhysicalPlan& plan) {
     return lines;
 }
 
-}  // namespace minidb::planner
+}  // namespace nessodb::planner

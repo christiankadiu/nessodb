@@ -4,7 +4,7 @@
 #include <string>
 #include <variant>
 
-namespace minidb::types {
+namespace nessodb::types {
 
 struct NullValue {
     friend bool operator==(const NullValue&, const NullValue&) = default;
@@ -12,4 +12,4 @@ struct NullValue {
 
 using Value = std::variant<NullValue, std::int64_t, std::string>;
 
-}  // namespace minidb::types
+}  // namespace nessodb::types

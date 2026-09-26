@@ -9,7 +9,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 void saturating_add(std::size_t& target, std::size_t amount) noexcept {
@@ -169,4 +169,4 @@ NestedLoopJoinOperator::materialize_right() {
     return {};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

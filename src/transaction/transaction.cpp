@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace minidb::transaction {
+namespace nessodb::transaction {
 
 std::expected<Transaction, TransactionError> Transaction::start(
     common::TransactionId id) noexcept {
@@ -49,4 +49,4 @@ std::expected<void, TransactionError> Transaction::abort() noexcept {
     return {};
 }
 
-}  // namespace minidb::transaction
+}  // namespace nessodb::transaction

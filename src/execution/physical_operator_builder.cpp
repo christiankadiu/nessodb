@@ -16,7 +16,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 template <typename... Visitors>
@@ -206,4 +206,4 @@ std::unique_ptr<RowOperator> build_operator_tree_for_tables(
     return build_operator_tree_impl(std::move(plan), table_inputs);
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace minidb::catalog {
+namespace nessodb::catalog {
 
 struct ColumnSchema {
     std::string name;
@@ -20,4 +20,4 @@ struct TableSchema {
     common::TableId id{};
 };
 
-}  // namespace minidb::catalog
+}  // namespace nessodb::catalog

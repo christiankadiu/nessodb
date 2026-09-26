@@ -1,6 +1,6 @@
 #include "transaction/lock_manager.hpp"
 
-namespace minidb::transaction {
+namespace nessodb::transaction {
 
 std::expected<void, LockError> LockManager::acquire(
     common::TransactionId transaction_id, common::TableId table_id,
@@ -62,4 +62,4 @@ void LockManager::release_all(common::TransactionId transaction_id) {
     }
 }
 
-}  // namespace minidb::transaction
+}  // namespace nessodb::transaction

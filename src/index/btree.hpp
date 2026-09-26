@@ -14,7 +14,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::index {
+namespace nessodb::index {
 
 enum class BTreeErrorCode {
     invalid_root_page_id,
@@ -108,4 +108,4 @@ private:
     common::PageId root_page_id_;
 };
 
-}  // namespace minidb::index
+}  // namespace nessodb::index

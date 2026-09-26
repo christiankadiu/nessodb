@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 inline constexpr std::size_t page_size_offset = page_header_size;
@@ -103,4 +103,4 @@ std::expected<DatabaseHeader, DatabaseHeaderError> decode_database_header(
     return header;
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

@@ -3,7 +3,7 @@
 #include <memory>
 #include <utility>
 
-namespace minidb::sql {
+namespace nessodb::sql {
 namespace {
 
 bool is_literal(TokenType type) noexcept {
@@ -1371,4 +1371,4 @@ std::expected<Token, ParseError> Parser::peek_token() {
     return *lookahead_;
 }
 
-}  // namespace minidb::sql
+}  // namespace nessodb::sql

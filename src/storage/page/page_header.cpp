@@ -2,7 +2,7 @@
 
 #include "storage/page/codec.hpp"
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 inline constexpr std::size_t magic_offset = 0;
@@ -93,4 +93,4 @@ std::expected<PageHeader, PageHeaderError> decode_page_header(
     };
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

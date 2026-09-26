@@ -6,7 +6,7 @@
 #include <unordered_set>
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 std::expected<TableHeap, TableHeapError> TableHeap::create(
     BufferPool& buffer_pool, catalog::TableSchema schema) {
@@ -413,4 +413,4 @@ TableHeap::TableHeap(BufferPool& buffer_pool, catalog::TableSchema schema,
       first_page_id_(first_page_id),
       last_page_id_(last_page_id) {}
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

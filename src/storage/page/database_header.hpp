@@ -8,7 +8,7 @@
 #include <optional>
 #include <span>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 inline constexpr std::size_t database_header_size = 64;
 
@@ -34,4 +34,4 @@ enum class DatabaseHeaderError {
 [[nodiscard]] std::expected<DatabaseHeader, DatabaseHeaderError> decode_database_header(
     std::span<const std::byte> source) noexcept;
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

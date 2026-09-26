@@ -10,7 +10,7 @@
 #include <string>
 #include <variant>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 inline constexpr std::int64_t catalog_record_format_version = 2;
 
@@ -62,4 +62,4 @@ enum class CatalogRecordError {
 [[nodiscard]] std::expected<CatalogRecord, CatalogRecordError> decode_catalog_record(
     const Row& row);
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

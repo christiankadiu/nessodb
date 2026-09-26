@@ -16,7 +16,7 @@
 #include <string_view>
 #include <variant>
 
-namespace minidb::engine {
+namespace nessodb::engine {
 
 using DatabaseOpenError =
     std::variant<storage::StorageManagerError, catalog::CatalogError,
@@ -76,4 +76,4 @@ private:
     std::optional<ActiveTransaction> active_transaction_;
 };
 
-}  // namespace minidb::engine
+}  // namespace nessodb::engine

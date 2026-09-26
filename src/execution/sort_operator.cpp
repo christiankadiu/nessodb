@@ -11,7 +11,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 int compare_values(const types::Value& left, const types::Value& right) {
@@ -158,4 +158,4 @@ std::expected<void, OperatorError> SortOperator::materialize() {
     return {};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

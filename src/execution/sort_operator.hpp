@@ -7,7 +7,7 @@
 #include <optional>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 inline constexpr std::size_t default_sort_memory_limit = 64 * 1024 * 1024;
 
@@ -42,4 +42,4 @@ private:
     bool materialized_{};
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

@@ -8,7 +8,7 @@
 #include <expected>
 #include <string_view>
 
-namespace minidb::catalog {
+namespace nessodb::catalog {
 
 enum class CatalogError {
     table_already_exists,
@@ -31,4 +31,4 @@ private:
     std::uint64_t next_table_id_{1};
 };
 
-}  // namespace minidb::catalog
+}  // namespace nessodb::catalog

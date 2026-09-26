@@ -5,13 +5,13 @@
 
 #include <expected>
 
-namespace minidb::catalog {
+namespace nessodb::catalog {
 
 class Catalog;
 
-}  // namespace minidb::catalog
+}  // namespace nessodb::catalog
 
-namespace minidb::binder {
+namespace nessodb::binder {
 
 enum class BindErrorCode {
     invalid_integer_literal,
@@ -48,4 +48,4 @@ struct BindError {
 [[nodiscard]] std::expected<BoundUpdateStatement, BindError> bind_update_statement(
     const sql::UpdateStatement& statement, const catalog::Catalog& catalog);
 
-}  // namespace minidb::binder
+}  // namespace nessodb::binder

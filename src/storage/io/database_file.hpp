@@ -10,7 +10,7 @@
 #include <filesystem>
 #include <variant>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class DatabaseFileStructureError {
     page_count_mismatch,
@@ -72,4 +72,4 @@ private:
     DatabaseHeader header_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

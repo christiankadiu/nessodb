@@ -5,7 +5,7 @@
 #include <atomic>
 #include <expected>
 
-namespace minidb::transaction {
+namespace nessodb::transaction {
 
 class TransactionManager;
 
@@ -51,4 +51,4 @@ private:
     std::atomic<TransactionState> state_{TransactionState::active};
 };
 
-}  // namespace minidb::transaction
+}  // namespace nessodb::transaction

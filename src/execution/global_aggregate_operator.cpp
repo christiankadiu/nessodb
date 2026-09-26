@@ -6,7 +6,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 OperatorError expression_error(const ExpressionError& error) noexcept {
@@ -114,4 +114,4 @@ OperatorResult GlobalAggregateOperator::next() {
     return std::optional<RowBatch>{std::move(output)};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

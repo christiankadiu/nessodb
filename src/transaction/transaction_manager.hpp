@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <variant>
 
-namespace minidb::transaction {
+namespace nessodb::transaction {
 
 using TransactionHandle = std::shared_ptr<const Transaction>;
 using TransactionLockError = std::variant<TransactionError, LockError>;
@@ -47,4 +47,4 @@ private:
     LockManager lock_manager_;
 };
 
-}  // namespace minidb::transaction
+}  // namespace nessodb::transaction

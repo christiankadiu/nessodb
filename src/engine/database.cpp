@@ -17,7 +17,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::engine {
+namespace nessodb::engine {
 namespace {
 
 void apply_assignments(
@@ -697,4 +697,4 @@ std::expected<QueryResult, QueryError> Database::execute(
     return result;
 }
 
-}  // namespace minidb::engine
+}  // namespace nessodb::engine

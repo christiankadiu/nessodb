@@ -11,7 +11,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class UndoErrorCode {
     invalid_undo_position,
@@ -78,4 +78,4 @@ private:
     std::vector<UndoRecord> records_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

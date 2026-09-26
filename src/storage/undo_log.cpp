@@ -3,7 +3,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 template <typename RowId, typename RowIdentifier>
@@ -159,4 +159,4 @@ std::size_t UndoLog::size() const noexcept {
     return records_.size();
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

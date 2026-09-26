@@ -5,9 +5,9 @@
 #include <string>
 #include <vector>
 
-namespace minidb::planner {
+namespace nessodb::planner {
 
 [[nodiscard]] std::vector<std::string> format_physical_plan(
     const PhysicalPlan& plan);
 
-}  // namespace minidb::planner
+}  // namespace nessodb::planner

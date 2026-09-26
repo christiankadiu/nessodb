@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace minidb::transaction {
+namespace nessodb::transaction {
 
 class TransactionManager;
 
@@ -54,4 +54,4 @@ private:
     std::unordered_map<std::uint64_t, TableLock> table_locks_;
 };
 
-}  // namespace minidb::transaction
+}  // namespace nessodb::transaction

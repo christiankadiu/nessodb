@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 struct AggregateComputation {
     std::unique_ptr<AggregateState> state;
@@ -14,4 +14,4 @@ struct AggregateComputation {
     sql::SourceLocation location;
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

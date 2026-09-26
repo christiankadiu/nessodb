@@ -3,11 +3,11 @@
 #include "storage/access/record_id.hpp"
 #include "storage/access/row.hpp"
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 struct StoredRow {
     RecordId record_id;
     Row row;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

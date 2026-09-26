@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace minidb::recovery {
+namespace nessodb::recovery {
 namespace {
 
 inline constexpr std::uint32_t wal_magic = 0x4c41574e;
@@ -609,4 +609,4 @@ std::expected<void, WalError> WriteAheadLog::rewrite_empty() {
     return {};
 }
 
-}  // namespace minidb::recovery
+}  // namespace nessodb::recovery

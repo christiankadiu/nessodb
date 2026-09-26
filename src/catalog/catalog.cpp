@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-namespace minidb::catalog {
+namespace nessodb::catalog {
 
 std::expected<const TableSchema*, CatalogError> Catalog::create_table(TableSchema schema) {
     if (find_table(schema.name) != nullptr) {
@@ -61,4 +61,4 @@ const TableSchema* Catalog::find_table(common::TableId table_id) const noexcept 
     return nullptr;
 }
 
-}  // namespace minidb::catalog
+}  // namespace nessodb::catalog

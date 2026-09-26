@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 namespace {
 
 std::expected<void, CatalogStoreError> validate_catalog_row(const Row& row) {
@@ -409,4 +409,4 @@ CatalogStore::CatalogStore(DatabaseFile& database_file, BufferPool& buffer_pool,
       buffer_pool_(buffer_pool),
       table_heap_(std::move(table_heap)) {}
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

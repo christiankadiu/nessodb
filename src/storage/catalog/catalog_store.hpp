@@ -12,7 +12,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class CatalogStoreErrorCode {
     already_initialized,
@@ -80,4 +80,4 @@ private:
     TableHeap table_heap_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

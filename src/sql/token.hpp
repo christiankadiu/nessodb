@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <string_view>
 
-namespace minidb::sql {
+namespace nessodb::sql {
 
 enum class TokenType {
     end_of_input,
@@ -76,4 +76,4 @@ struct Token {
     SourceLocation location;
 };
 
-}  // namespace minidb::sql
+}  // namespace nessodb::sql

@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 namespace {
 
@@ -599,4 +599,4 @@ StorageManager::lookup_primary_key(
     return rows;
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

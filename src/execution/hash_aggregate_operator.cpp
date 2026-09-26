@@ -11,7 +11,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 void combine_hash(std::size_t& seed, std::size_t value) noexcept {
@@ -265,4 +265,4 @@ std::expected<void, OperatorError> HashAggregateOperator::materialize() {
     return {};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

@@ -10,7 +10,7 @@
 #include <optional>
 #include <vector>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 enum class HeapError {
     invalid_table_id,
@@ -67,4 +67,4 @@ private:
     std::deque<TableData> tables_;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

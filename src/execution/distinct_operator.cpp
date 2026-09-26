@@ -8,7 +8,7 @@
 #include <utility>
 #include <variant>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 namespace {
 
 void combine_hash(std::size_t& seed, std::size_t value) noexcept {
@@ -112,4 +112,4 @@ OperatorResult DistinctOperator::next() {
     return std::optional<RowBatch>{std::move(output)};
 }
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

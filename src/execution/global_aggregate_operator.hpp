@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-namespace minidb::execution {
+namespace nessodb::execution {
 
 class GlobalAggregateOperator final : public RowOperator {
 public:
@@ -22,4 +22,4 @@ private:
     bool finished_{};
 };
 
-}  // namespace minidb::execution
+}  // namespace nessodb::execution

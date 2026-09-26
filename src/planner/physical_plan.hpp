@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-namespace minidb::planner {
+namespace nessodb::planner {
 
 struct PhysicalPlan;
 using PhysicalPlanPtr = std::unique_ptr<PhysicalPlan>;
@@ -88,4 +88,4 @@ struct PhysicalPlan {
     PhysicalPlanNode node;
 };
 
-}  // namespace minidb::planner
+}  // namespace nessodb::planner

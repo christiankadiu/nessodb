@@ -2,7 +2,7 @@
 
 #include <cctype>
 
-namespace minidb::sql {
+namespace nessodb::sql {
 namespace {
 
 bool is_identifier_start(char character) noexcept {
@@ -245,4 +245,4 @@ Token Lexer::make_token(TokenType type, SourceLocation start) const noexcept {
     return Token{type, source_.substr(start.offset, offset_ - start.offset), start};
 }
 
-}  // namespace minidb::sql
+}  // namespace nessodb::sql

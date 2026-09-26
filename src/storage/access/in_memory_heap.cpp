@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 std::expected<void, HeapError> InMemoryHeap::create_table(common::TableId table_id) {
     if (!table_id.is_valid()) {
@@ -141,4 +141,4 @@ const InMemoryHeap::TableData* InMemoryHeap::find_table(
     return nullptr;
 }
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage

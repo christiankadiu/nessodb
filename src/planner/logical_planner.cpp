@@ -4,7 +4,7 @@
 #include <memory>
 #include <utility>
 
-namespace minidb::planner {
+namespace nessodb::planner {
 namespace {
 
 template <typename Node>
@@ -71,4 +71,4 @@ LogicalPlanPtr plan_select(binder::BoundSelectStatement statement) {
     return plan;
 }
 
-}  // namespace minidb::planner
+}  // namespace nessodb::planner

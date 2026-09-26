@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace minidb::common {
+namespace nessodb::common {
 
 struct PageId {
     static constexpr std::uint64_t invalid_value = std::numeric_limits<std::uint64_t>::max();
@@ -17,4 +17,4 @@ struct PageId {
     friend bool operator==(const PageId&, const PageId&) = default;
 };
 
-}  // namespace minidb::common
+}  // namespace nessodb::common

@@ -3,7 +3,7 @@
 #include "common/page_id.hpp"
 #include "storage/page/slotted_page.hpp"
 
-namespace minidb::storage {
+namespace nessodb::storage {
 
 struct RecordId {
     common::PageId page_id;
@@ -16,4 +16,4 @@ struct RecordId {
     friend bool operator==(const RecordId&, const RecordId&) = default;
 };
 
-}  // namespace minidb::storage
+}  // namespace nessodb::storage
