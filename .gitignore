@@ -10,6 +10,8 @@ CTestTestfile.cmake
 Testing/
 compile_commands.json
 install_manifest.txt
+*.ndb
+*.mdb
 
 # Compiled artifacts
 *.a
@@ -32,7 +34,7 @@ install_manifest.txt
 core
 core.*
 
-# Local configuration and secrets
+# Local 
 .env
 .env.*
 !.env.example
